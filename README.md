@@ -57,6 +57,10 @@ Configuration
       # defaultLatency: 200ms
       # services:
       #   users: { errorRate: 0.1 }
+- Example application.properties:
+  fault.injection.enabled=true
+  # fault.injection.default-latency=200ms
+  # fault.injection.services.users.error-rate=0.1
 
 Actuator endpoint (optional)
 - If spring-boot-starter-actuator is on the classpath:
