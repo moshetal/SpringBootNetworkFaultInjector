@@ -11,7 +11,7 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.example</groupId>
+    <groupId>com.mta</groupId>
     <artifactId>spring-boot-fault-injector-starter</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>spring-boot-fault-injector-starter</name>
