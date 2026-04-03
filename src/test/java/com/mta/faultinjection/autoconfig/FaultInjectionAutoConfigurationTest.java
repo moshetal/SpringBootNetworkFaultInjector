@@ -1,6 +1,6 @@
-package com.example.faultinjection.autoconfig;
+package com.mta.faultinjection.autoconfig;
 
-import com.example.faultinjection.core.FaultInjectionManager;
+import com.mta.faultinjection.core.FaultInjectionManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
