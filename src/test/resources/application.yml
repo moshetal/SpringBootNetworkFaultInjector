@@ -1,0 +1,10 @@
+fault:
+  injection:
+    # Example properties for demonstration. No fields are actually bound yet
+    # because FaultInjectionProperties is intentionally empty for structure-only.
+    enabled: true
+    default-latency: 250ms
+    services:
+      example-service:
+        error-rate: 0.1
+        delay-rate: 0.2

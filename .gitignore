@@ -1,0 +1,15 @@
+# Maven build output
+/target/
+
+# IntelliJ IDEA project files
+/.idea/
+*.iml
+
+# OS files
+.DS_Store
+
+# Logs
+*.log
+
+# Maven wrapper files (optional binary)
+!.mvn/wrapper/maven-wrapper.jar

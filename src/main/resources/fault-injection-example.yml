@@ -1,0 +1,10 @@
+# Example configuration for the Fault Injection Starter
+# This file is for reference only and is not loaded by Spring by default.
+fault:
+  injection:
+    enabled: false
+    # default-latency: 100ms
+    # services:
+    #   service-a:
+    #     error-rate: 0.5
+    #     delay-rate: 0.1
