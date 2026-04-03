@@ -1,4 +1,4 @@
-package com.example.faultinjection.core;
+package com.mta.faultinjection.core;
 
 /**
  * Rule Engine (FaultInjectionManager)

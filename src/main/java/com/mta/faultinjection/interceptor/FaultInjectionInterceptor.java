@@ -1,4 +1,4 @@
-package com.example.faultinjection.interceptor;
+package com.mta.faultinjection.interceptor;
 
 import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;

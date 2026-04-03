@@ -1,4 +1,4 @@
-package com.example.faultinjection.actuator;
+package com.mta.faultinjection.actuator;
 
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
