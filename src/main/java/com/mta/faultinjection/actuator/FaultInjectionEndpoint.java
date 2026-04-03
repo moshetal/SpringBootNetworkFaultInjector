@@ -8,24 +8,36 @@ import java.util.Collections;
 import java.util.Map;
 
 /**
- * Management API (FaultInjectionEndpoint)
- * Role: A Spring Boot Actuator Endpoint.
- * Function: Exposes a REST-like API (e.g., /actuator/faultinjector) to allow runtime changes
- * (enable/disable faults, update error rates) without restarting the application.
- *
- * Note: Structure only. No runtime mutation logic implemented.
+ * Spring Boot Actuator endpoint that exposes basic fault-injection management hooks.
+ * The current implementation returns a simple status and accepts a no-op update.
  */
 @Endpoint(id = "faultinjector")
 public class FaultInjectionEndpoint {
 
+    /**
+     * Describes the current state of the fault-injection subsystem.
+     *
+     * Library behavior: returns a minimal status map. Implementations may extend this
+     * to surface counters, rules, or current configuration.
+     *
+     * @return an immutable map describing current status
+     */
     @ReadOperation
     public Map<String, Object> describe() {
-        // Placeholder response
+        // TODO: Return real status information (enabled, rules summary, metrics)
         return Collections.singletonMap("status", "ok");
     }
 
+    /**
+     * Updates fault-injection configuration/state.
+     *
+     * Library behavior: treated as a no-op placeholder. Implementations may parse
+     * the incoming payload and update rules accordingly.
+     *
+     * @param request arbitrary request body mapped to a key-value structure
+     */
     @WriteOperation
     public void update(Map<String, Object> request) {
-        // Placeholder no-op update
+        // TODO: Apply updates from request payload
     }
 }

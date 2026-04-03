@@ -8,16 +8,30 @@ import org.springframework.http.client.ClientHttpResponse;
 import java.io.IOException;
 
 /**
- * Network Interceptor (Sensor & Actuator) for RestTemplate
- * Role: Intercepts synchronous HTTP calls, would query the Rule Engine,
- * and could force delays or errors if enabled.
- *
- * Note: Structure only. No fault injection logic implemented.
+ * ClientHttpRequestInterceptor used by both RestTemplate and RestClient.
+ * Intended hook for injecting delays or errors around outbound HTTP requests.
  */
 public class FaultInjectionInterceptor implements ClientHttpRequestInterceptor {
+
+    /**
+     * Intercepts the outbound HTTP request.
+     * <p>
+     * Invoked by both RestTemplate and RestClient when this interceptor is registered
+     * (via RestTemplateCustomizer or RestClientCustomizer in this starter).
+     *
+     * Library behavior: consult the configured decision strategy and, based on the
+     * returned instruction, either delay, fail fast, or proceed. The default
+     * implementation is a pass-through.
+     *
+     * @param request the HTTP request
+     * @param body request body in bytes
+     * @param execution next element in the interceptor chain
+     * @return the HTTP response from the execution chain
+     * @throws IOException if an I/O error occurs
+     */
     @Override
     public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
-        // Placeholder: consult rule engine and possibly alter behavior
+        // TODO: Consult FaultDecisionStrategy and apply delay/error when instructed
         return execution.execute(request, body);
     }
 }

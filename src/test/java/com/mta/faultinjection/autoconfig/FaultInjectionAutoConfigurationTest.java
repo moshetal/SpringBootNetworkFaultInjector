@@ -1,6 +1,6 @@
 package com.mta.faultinjection.autoconfig;
 
-import com.mta.faultinjection.core.FaultInjectionManager;
+import com.mta.faultinjection.core.FaultDecisionStrategyImpl;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -19,7 +19,7 @@ class FaultInjectionAutoConfigurationTest {
     @Test
     void shouldCreateFaultInjectionManagerBeanByDefault() {
         contextRunner.run(context -> {
-            assertThat(context).hasSingleBean(FaultInjectionManager.class);
+            assertThat(context).hasSingleBean(FaultDecisionStrategyImpl.class);
         });
     }
 
@@ -28,19 +28,19 @@ class FaultInjectionAutoConfigurationTest {
         contextRunner
                 .withUserConfiguration(UserProvidedManagerConfig.class)
                 .run(context -> {
-                    assertThat(context).hasSingleBean(FaultInjectionManager.class);
+                    assertThat(context).hasSingleBean(FaultDecisionStrategyImpl.class);
                     // Ensure the bean present is the user-defined one
-                    assertThat(context.getBean(FaultInjectionManager.class))
+                    assertThat(context.getBean(FaultDecisionStrategyImpl.class))
                             .isSameAs(UserProvidedManagerConfig.USER_MANAGER_INSTANCE);
                 });
     }
 
     @org.springframework.context.annotation.Configuration
     static class UserProvidedManagerConfig {
-        static final FaultInjectionManager USER_MANAGER_INSTANCE = new FaultInjectionManager();
+        static final FaultDecisionStrategyImpl USER_MANAGER_INSTANCE = new FaultDecisionStrategyImpl();
 
         @org.springframework.context.annotation.Bean
-        FaultInjectionManager faultInjectionManager() {
+        FaultDecisionStrategyImpl faultInjectionManager() {
             return USER_MANAGER_INSTANCE;
         }
     }

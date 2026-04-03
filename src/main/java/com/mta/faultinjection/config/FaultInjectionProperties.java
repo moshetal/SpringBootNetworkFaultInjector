@@ -4,16 +4,15 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Configuration Manager (FaultInjectionProperties)
- * Role: Loads configuration from application.yml (e.g., default latency, error rates, enabled/disabled flags).
- * Function: Maps the hierarchical YAML structure into Java POJO objects for easy access by the code.
- *
- * Note: Structure only. No logic implemented.
+ * Type-safe configuration mapped from the "fault.injection" namespace.
+ * <p>
+ * Add fields here to control behavior such as enablement, default latency, and
+ * per-service rules. Spring Boot will bind values from application.yml/properties.
  */
 @Data
 @ConfigurationProperties(prefix = "fault.injection")
 public class FaultInjectionProperties {
-    // Example placeholders for structure; actual fields and logic intentionally omitted.
+    // TODO: Define properties, e.g. enabled flag, default latency, and per-service rules.
     // private boolean enabled;
     // private Duration defaultLatency;
     // private Map<String, ServiceRule> services;
