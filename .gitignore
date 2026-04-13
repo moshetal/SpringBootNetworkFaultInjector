@@ -1,12 +1,25 @@
 # Maven build output
 /target/
+*.class
 
 # IntelliJ IDEA project files
 /.idea/
 *.iml
 
+# VS Code project files
+/.vscode/
+
+# Eclipse project files
+/.project
+/.classpath
+/.settings/
+
+# Claude Code local state
+/.claude/
+
 # OS files
 .DS_Store
+Thumbs.db
 
 # Logs
 *.log

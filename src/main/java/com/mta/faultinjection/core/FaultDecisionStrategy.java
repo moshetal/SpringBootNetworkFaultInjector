@@ -1,23 +1,25 @@
 package com.mta.faultinjection.core;
 
+import org.springframework.http.HttpMethod;
+
+import java.net.URI;
+
 /**
- * Strategy interface that determines how to handle an outbound HTTP request
- * for fault injection purposes.
- *
+ * Strategy that decides how a given outbound HTTP request should be handled
+ * for fault-injection purposes.
+ * <p>
  * Library users can provide their own implementation as a Spring bean to
- * customize behavior globally.
+ * replace the default, config-driven behavior.
  */
 public interface FaultDecisionStrategy {
 
     /**
-     * Decide whether to inject a delay, fail the request, or pass through.
+     * Decide whether to inject a delay, short-circuit with an error, or pass
+     * the request through unchanged.
      *
-     * This method is called by HTTP client interceptors/filters before the
-     * actual request is executed.
-     *
-     * @param url  the full request URL when available (may be null)
-     * @param host the request host when available (may be null)
-     * @return an {@link FaultDecisionStrategyImpl.Instruction} indicating the desired action
+     * @param method the HTTP method (never {@code null})
+     * @param uri    the full request URI (never {@code null})
+     * @return a non-null {@link FaultDecision}
      */
-    FaultDecisionStrategyImpl.Instruction decide(String url, String host);
+    FaultDecision decide(HttpMethod method, URI uri);
 }
