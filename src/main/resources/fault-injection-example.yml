@@ -1,10 +1,43 @@
-# Example configuration for the Fault Injection Starter
+# Example configuration for the Fault Injection Starter.
 # This file is for reference only and is not loaded by Spring by default.
 fault:
   injection:
-    enabled: false
-    # default-latency: 100ms
-    # services:
-    #   service-a:
-    #     error-rate: 0.5
-    #     delay-rate: 0.1
+    enabled: true
+
+    # Fallback values used whenever a rule omits a field.
+    defaults:
+      delay-ms: 0
+      error-status: 503
+      error-message: "Injected fault"
+      mode: PROBABILITY      # PROBABILITY or EVERY_N
+      probability: 0.0
+      every-n: 0
+
+    # Rules are evaluated in declared order; the first match wins.
+    rules:
+      # Probability-based latency injection against a specific host.
+      - name: slow-billing-api
+        host-pattern: "api\\.billing\\.example\\.com"
+        methods: [GET, POST]
+        fault: DELAY
+        mode: PROBABILITY
+        probability: 0.10
+        delay-ms: 750
+
+      # Deterministic error injection: every 5th matching call returns 503.
+      - name: flaky-search
+        url-pattern: ".*/search/.*"
+        fault: ERROR
+        mode: EVERY_N
+        every-n: 5
+        error-status: 503
+        error-message: "Search is flaky today"
+
+      # Combined: 2% of calls get delayed *and* fail.
+      - name: worst-case
+        host-pattern: ".*\\.internal\\.example\\.com"
+        fault: BOTH
+        mode: PROBABILITY
+        probability: 0.02
+        delay-ms: 2000
+        error-status: 504
