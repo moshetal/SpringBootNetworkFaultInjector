@@ -1,37 +1,64 @@
 package com.mta.faultinjection.interceptor;
 
+import com.mta.faultinjection.core.FaultDecision;
+import com.mta.faultinjection.core.FaultDecisionStrategy;
+import com.mta.faultinjection.util.Sleeper;
 import org.springframework.http.HttpRequest;
 import org.springframework.http.client.ClientHttpRequestExecution;
 import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.ClientHttpResponse;
 
 import java.io.IOException;
+import java.io.InterruptedIOException;
+import java.util.Objects;
 
 /**
- * ClientHttpRequestInterceptor used by both RestTemplate and RestClient.
- * Intended hook for injecting delays or errors around outbound HTTP requests.
+ * {@link ClientHttpRequestInterceptor} shared by RestTemplate and RestClient.
+ * <p>
+ * Consults the configured {@link FaultDecisionStrategy} and either delays,
+ * short-circuits with a synthetic error, or passes the request through.
  */
 public class FaultInjectionInterceptor implements ClientHttpRequestInterceptor {
 
-    /**
-     * Intercepts the outbound HTTP request.
-     * <p>
-     * Invoked by both RestTemplate and RestClient when this interceptor is registered
-     * (via RestTemplateCustomizer or RestClientCustomizer in this starter).
-     *
-     * Library behavior: consult the configured decision strategy and, based on the
-     * returned instruction, either delay, fail fast, or proceed. The default
-     * implementation is a pass-through.
-     *
-     * @param request the HTTP request
-     * @param body request body in bytes
-     * @param execution next element in the interceptor chain
-     * @return the HTTP response from the execution chain
-     * @throws IOException if an I/O error occurs
-     */
+    private final FaultDecisionStrategy strategy;
+    private final Sleeper sleeper;
+
+    public FaultInjectionInterceptor(FaultDecisionStrategy strategy) {
+        this(strategy, Sleeper.DEFAULT);
+    }
+
+    public FaultInjectionInterceptor(FaultDecisionStrategy strategy, Sleeper sleeper) {
+        this.strategy = Objects.requireNonNull(strategy, "strategy");
+        this.sleeper = Objects.requireNonNull(sleeper, "sleeper");
+    }
+
     @Override
     public ClientHttpResponse intercept(HttpRequest request, byte[] body, ClientHttpRequestExecution execution) throws IOException {
-        // TODO: Consult FaultDecisionStrategy and apply delay/error when instructed
+        FaultDecision decision = strategy.decide(request.getMethod(), request.getURI());
+        if (decision == null || decision.instruction() == FaultDecision.Instruction.PASS) {
+            return execution.execute(request, body);
+        }
+
+        if (decision.hasDelay()) {
+            sleepOrInterrupt(decision.delay().toMillis());
+        }
+        if (decision.hasError()) {
+            return new InjectedErrorResponse(decision.errorStatus(), decision.errorMessage());
+        }
         return execution.execute(request, body);
+    }
+
+    private void sleepOrInterrupt(long millis) throws IOException {
+        if (millis <= 0) {
+            return;
+        }
+        try {
+            sleeper.sleep(millis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            InterruptedIOException ioe = new InterruptedIOException("Fault-injection delay interrupted");
+            ioe.initCause(e);
+            throw ioe;
+        }
     }
 }

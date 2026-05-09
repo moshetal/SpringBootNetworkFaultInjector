@@ -1,15 +1,21 @@
 package com.mta.faultinjection.autoconfig;
 
+import com.mta.faultinjection.config.FaultInjectionProperties;
+import com.mta.faultinjection.core.FaultDecisionStrategy;
 import com.mta.faultinjection.core.FaultDecisionStrategyImpl;
+import com.mta.faultinjection.interceptor.FaultInjectionFilter;
+import com.mta.faultinjection.interceptor.FaultInjectionInterceptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.boot.web.client.RestTemplateCustomizer;
+import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Minimal smoke tests to ensure the starter auto-configuration loads
- * without requiring optional dependencies like Web, WebFlux, or Actuator.
+ * Smoke tests verifying the auto-configuration wires the expected beans across
+ * the supported HTTP clients and honors user-provided overrides.
  */
 class FaultInjectionAutoConfigurationTest {
 
@@ -17,31 +23,41 @@ class FaultInjectionAutoConfigurationTest {
             .withConfiguration(AutoConfigurations.of(FaultInjectionAutoConfiguration.class));
 
     @Test
-    void shouldCreateFaultInjectionManagerBeanByDefault() {
-        contextRunner.run(context -> {
-            assertThat(context).hasSingleBean(FaultDecisionStrategyImpl.class);
+    void createsDefaultDecisionStrategyAndInterceptor() {
+        contextRunner.run(ctx -> {
+            assertThat(ctx).hasSingleBean(FaultDecisionStrategyImpl.class);
+            assertThat(ctx).hasSingleBean(FaultInjectionInterceptor.class);
+            assertThat(ctx).hasSingleBean(RestTemplateCustomizer.class);
         });
     }
 
     @Test
-    void shouldBackOffIfUserDefinesCustomManager() {
+    void registersWebClientCustomizerAndFilter() {
+        contextRunner.run(ctx -> {
+            assertThat(ctx).hasSingleBean(FaultInjectionFilter.class);
+            assertThat(ctx).hasSingleBean(WebClientCustomizer.class);
+        });
+    }
+
+    @Test
+    void backsOffWhenUserProvidesStrategyBean() {
         contextRunner
-                .withUserConfiguration(UserProvidedManagerConfig.class)
-                .run(context -> {
-                    assertThat(context).hasSingleBean(FaultDecisionStrategyImpl.class);
-                    // Ensure the bean present is the user-defined one
-                    assertThat(context.getBean(FaultDecisionStrategyImpl.class))
-                            .isSameAs(UserProvidedManagerConfig.USER_MANAGER_INSTANCE);
+                .withUserConfiguration(UserStrategyConfig.class)
+                .run(ctx -> {
+                    assertThat(ctx).hasSingleBean(FaultDecisionStrategy.class);
+                    assertThat(ctx.getBean(FaultDecisionStrategy.class))
+                            .isSameAs(UserStrategyConfig.USER_INSTANCE);
                 });
     }
 
     @org.springframework.context.annotation.Configuration
-    static class UserProvidedManagerConfig {
-        static final FaultDecisionStrategyImpl USER_MANAGER_INSTANCE = new FaultDecisionStrategyImpl();
+    static class UserStrategyConfig {
+        static final FaultDecisionStrategy USER_INSTANCE =
+                new FaultDecisionStrategyImpl(new FaultInjectionProperties());
 
         @org.springframework.context.annotation.Bean
-        FaultDecisionStrategyImpl faultInjectionManager() {
-            return USER_MANAGER_INSTANCE;
+        FaultDecisionStrategy faultDecisionStrategy() {
+            return USER_INSTANCE;
         }
     }
 }
