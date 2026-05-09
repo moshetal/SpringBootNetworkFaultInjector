@@ -26,3 +26,4 @@ Thumbs.db
 
 # Maven wrapper files (optional binary)
 !.mvn/wrapper/maven-wrapper.jar
+**/target/**

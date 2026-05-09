@@ -1,0 +1,108 @@
+server:
+  port: 8080
+
+demo:
+  upstream-base: http://localhost:8080/upstream
+
+# Expose the actuator endpoint so we can read state and toggle rules at runtime.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,faultinjector
+  endpoint:
+    faultinjector:
+      enabled: true
+
+# ============================================================================
+# Fault injection — every capability of the starter exercised below.
+#
+#  * defaults: shared fallbacks every rule inherits unless it overrides them
+#  * rules:   ordered list, FIRST MATCH WINS
+#
+#  Match dimensions: host-pattern (regex), url-pattern (regex), methods (set)
+#  Trigger modes:    PROBABILITY (random) or EVERY_N (deterministic)
+#  Fault types:      DELAY, ERROR, BOTH
+#  Per-rule enabled flag for runtime toggling without editing config
+# ============================================================================
+fault:
+  injection:
+    enabled: true
+
+    # Inherited by every rule that omits the field. The "no-host" rule below
+    # demonstrates this: it sets only delay-ms and inherits everything else.
+    defaults:
+      delay-ms: 100
+      error-status: 503
+      error-message: "Injected by fault-injector defaults"
+      mode: PROBABILITY
+      probability: 1.0
+      every-n: 0
+
+    rules:
+      # 1) Pure DELAY via URL pattern. Demonstrates: url-pattern, FaultType.DELAY,
+      #    PROBABILITY mode, per-rule override of delay-ms + error-message.
+      - name: slow-billing
+        url-pattern: ".*/upstream/billing/.*"
+        fault: DELAY
+        mode: PROBABILITY
+        probability: 1.0
+        delay-ms: 600
+        error-message: "(unused for DELAY)"
+
+      # 2) ERROR every 3rd matching call. Demonstrates: EVERY_N mode,
+      #    FaultType.ERROR, custom error-status + message, NO delay.
+      - name: flaky-search
+        url-pattern: ".*/upstream/search/.*"
+        fault: ERROR
+        mode: EVERY_N
+        every-n: 3
+        error-status: 502
+        error-message: "search index is flaky today"
+
+      # 3) Method-filtered BOTH (delay + error). Demonstrates: methods filter,
+      #    FaultType.BOTH. Only POST is faulted — GET on the same URL passes
+      #    through (see /demo/write-but-get).
+      - name: writes-bad
+        url-pattern: ".*/upstream/.*/write"
+        methods: [POST]
+        fault: BOTH
+        mode: PROBABILITY
+        probability: 1.0
+        delay-ms: 250
+        error-status: 504
+        error-message: "writes are temporarily faulted"
+
+      # 4) Disabled rule. Demonstrates: per-rule `enabled: false`. The path
+      #    matches, but because the rule is off it has no effect — a /demo/healthy
+      #    call sails through even though it matches the pattern.
+      - name: healthy-but-disabled
+        url-pattern: ".*/upstream/healthy.*"
+        enabled: false
+        fault: ERROR
+        mode: PROBABILITY
+        probability: 1.0
+        error-status: 500
+
+      # 5) Host-pattern example. Demonstrates: host-pattern matching. None of
+      #    the demo endpoints reach this host, so under default routing it
+      #    never fires — we leave it here as a documented capability.
+      - name: external-host-example
+        host-pattern: "api\\.partner\\.example\\.com"
+        fault: DELAY
+        mode: PROBABILITY
+        probability: 0.25
+        delay-ms: 1500
+
+      # 6) Probabilistic catch-all that INHERITS DEFAULTS (delay-ms, error-status,
+      #    error-message, mode all come from `defaults` above). Demonstrates:
+      #    defaults fallback. Probability starts at 0 (never fires) so the demo
+      #    can flip it live via the actuator's setProbability action.
+      - name: probabilistic-catchall
+        url-pattern: ".*/upstream/probabilistic/.*"
+        fault: BOTH
+        probability: 0.0    # flip to 0.5 / 1.0 via /actuator/faultinjector
+
+logging:
+  level:
+    com.mta.faultinjection: INFO
