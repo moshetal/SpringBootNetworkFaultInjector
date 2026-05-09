@@ -3,6 +3,7 @@ package com.mta.faultinjection.core;
 import com.mta.faultinjection.config.FaultInjectionProperties;
 import com.mta.faultinjection.config.FaultInjectionProperties.Defaults;
 import com.mta.faultinjection.config.FaultInjectionProperties.Rule;
+import com.mta.faultinjection.telemetry.FaultInjectionTelemetry;
 import org.springframework.http.HttpMethod;
 
 import java.net.URI;
@@ -29,6 +30,7 @@ public class FaultDecisionStrategyImpl implements FaultDecisionStrategy {
 
     private final FaultInjectionProperties properties;
     private final DoubleSupplier randomSupplier;
+    private final FaultInjectionTelemetry telemetry;
 
     /** Per-rule metrics, keyed by {@link Rule#getName()}. */
     private final Map<String, RuleMetrics> metrics = new ConcurrentHashMap<>();
@@ -37,15 +39,28 @@ public class FaultDecisionStrategyImpl implements FaultDecisionStrategy {
     private final Map<String, Pattern> patternCache = new ConcurrentHashMap<>();
 
     public FaultDecisionStrategyImpl(FaultInjectionProperties properties) {
-        this(properties, () -> java.util.concurrent.ThreadLocalRandom.current().nextDouble());
+        this(properties, () -> java.util.concurrent.ThreadLocalRandom.current().nextDouble(), null);
     }
 
     /**
      * Test-friendly constructor that accepts a deterministic random supplier.
      */
     public FaultDecisionStrategyImpl(FaultInjectionProperties properties, DoubleSupplier randomSupplier) {
+        this(properties, randomSupplier, null);
+    }
+
+    /**
+     * Production constructor used by auto-configuration when telemetry is
+     * available. {@code telemetry} may be {@code null}, in which case match /
+     * trigger events are not surfaced to the bundled UI but counters in
+     * {@link #metricsSnapshot()} are still maintained.
+     */
+    public FaultDecisionStrategyImpl(FaultInjectionProperties properties,
+                                     DoubleSupplier randomSupplier,
+                                     FaultInjectionTelemetry telemetry) {
         this.properties = Objects.requireNonNull(properties, "properties");
         this.randomSupplier = Objects.requireNonNull(randomSupplier, "randomSupplier");
+        this.telemetry = telemetry;
     }
 
     @Override
@@ -60,14 +75,33 @@ public class FaultDecisionStrategyImpl implements FaultDecisionStrategy {
             }
             RuleMetrics m = metricsFor(rule);
             m.matchCount.incrementAndGet();
+            if (telemetry != null) {
+                telemetry.recordMatch(rule, method, uri);
+            }
 
             if (!shouldFire(rule, m)) {
                 continue;
             }
             m.triggerCount.incrementAndGet();
-            return buildDecision(rule);
+            FaultDecision decision = buildDecision(rule);
+            if (telemetry != null) {
+                telemetry.recordTrigger(rule, method, uri, decision);
+            }
+            return decision;
         }
         return FaultDecision.pass();
+    }
+
+    /** Clear all per-rule counters. Used by the bundled UI's "Reset metrics" button. */
+    public void resetMetrics() {
+        metrics.clear();
+    }
+
+    /** Clear counters for a single rule by name; no-op if the name is unknown. */
+    public void resetMetrics(String ruleName) {
+        if (ruleName != null) {
+            metrics.remove(ruleName);
+        }
     }
 
     // ----- matching / firing -----

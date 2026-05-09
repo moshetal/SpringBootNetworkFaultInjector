@@ -1,1 +1,2 @@
 com.mta.faultinjection.autoconfig.FaultInjectionAutoConfiguration
+com.mta.faultinjection.autoconfig.FaultInjectionUiAutoConfiguration

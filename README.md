@@ -138,6 +138,42 @@ per-rule configuration with `matchCount` and `triggerCount` counters.
 Remember to expose the endpoint with
 `management.endpoints.web.exposure.include=faultinjector` (or `*`).
 
+## Bundled UI
+
+When Spring MVC is on the classpath the starter mounts a self-contained admin
+UI at `/fault-injector` (mirroring the way Swagger UI hangs off the
+application's port). Open it in a browser to:
+
+- view and edit defaults + every rule field at runtime,
+- add or delete rules without restarting,
+- toggle the global kill switch and per-rule enabled flag,
+- watch a live time-series chart of match vs trigger counts,
+- see the most recent injection decisions in a streaming table,
+- reset metrics or export them as JSON / CSV.
+
+The UI is a single static page (Tailwind + Chart.js via CDN, zero build step)
+that talks to a small REST API rooted at `${fault.injection.ui.path}/api`.
+
+### Configuration
+
+```yaml
+fault:
+  injection:
+    ui:
+      enabled: true                  # default true; set false to opt out
+      path: /fault-injector          # URL prefix for the UI and its API
+      event-buffer-size: 1000        # ring buffer size for "Recent decisions"
+      timeseries-bucket-seconds: 10  # width of one chart bucket
+      timeseries-buckets: 60         # number of buckets retained (10 s × 60 = 10 min)
+      snapshot-poll-ms: 2000         # UI hint for how often to poll
+```
+
+The UI auto-configures only when Spring MVC is on the classpath (i.e. when an
+HTTP server is running). Mutations are written into the live
+`FaultInjectionProperties` bean and persist for the JVM lifetime — they do
+**not** survive a restart, by design (use `application.yml` for durable
+configuration).
+
 ## Build
 
 ```bash

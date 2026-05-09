@@ -6,6 +6,8 @@ import com.mta.faultinjection.core.FaultDecisionStrategy;
 import com.mta.faultinjection.core.FaultDecisionStrategyImpl;
 import com.mta.faultinjection.interceptor.FaultInjectionFilter;
 import com.mta.faultinjection.interceptor.FaultInjectionInterceptor;
+import com.mta.faultinjection.telemetry.FaultInjectionTelemetry;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -21,6 +23,8 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.util.concurrent.ThreadLocalRandom;
+
 /**
  * Auto-configuration that registers fault-injection components for every
  * supported HTTP client present on the classpath.
@@ -35,8 +39,12 @@ public class FaultInjectionAutoConfiguration {
      */
     @Bean
     @ConditionalOnMissingBean(value = FaultDecisionStrategy.class, search = SearchStrategy.CURRENT)
-    public FaultDecisionStrategyImpl faultDecisionStrategy(FaultInjectionProperties properties) {
-        return new FaultDecisionStrategyImpl(properties);
+    public FaultDecisionStrategyImpl faultDecisionStrategy(FaultInjectionProperties properties,
+                                                           ObjectProvider<FaultInjectionTelemetry> telemetry) {
+        return new FaultDecisionStrategyImpl(
+                properties,
+                () -> ThreadLocalRandom.current().nextDouble(),
+                telemetry.getIfAvailable());
     }
 
     /**
