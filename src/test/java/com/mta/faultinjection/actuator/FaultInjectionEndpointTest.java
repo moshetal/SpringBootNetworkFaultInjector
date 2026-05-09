@@ -39,6 +39,26 @@ class FaultInjectionEndpointTest {
     }
 
     @Test
+    void describeMethodsAreSerializableStrings() throws Exception {
+        // Regression: HttpMethod is not Jackson-serializable by default, so the
+        // describe() output must coerce it to strings before exposure.
+        FaultInjectionProperties props = enabledWithRule("withMethods", 1.0);
+        props.getRules().get(0).setMethods(java.util.Set.of(HttpMethod.GET, HttpMethod.POST));
+
+        FaultInjectionEndpoint endpoint = new FaultInjectionEndpoint(props, new FaultDecisionStrategyImpl(props));
+        Map<String, Object> state = endpoint.describe();
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rules = (List<Map<String, Object>>) state.get("rules");
+        @SuppressWarnings("unchecked")
+        List<String> methods = (List<String>) rules.get(0).get("methods");
+        assertThat(methods).containsExactly("GET", "POST");
+
+        // Guard the actual Jackson round-trip — that's what blew up at runtime.
+        new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(state);
+    }
+
+    @Test
     void enableAndDisableFlipGlobalFlag() {
         FaultInjectionProperties props = enabledWithRule("r1", 1.0);
         props.setEnabled(false);

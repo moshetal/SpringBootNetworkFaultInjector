@@ -8,6 +8,7 @@ import com.mta.faultinjection.core.FaultDecisionStrategyImpl.RuleMetrics;
 import org.springframework.boot.actuate.endpoint.annotation.Endpoint;
 import org.springframework.boot.actuate.endpoint.annotation.ReadOperation;
 import org.springframework.boot.actuate.endpoint.annotation.WriteOperation;
+import org.springframework.http.HttpMethod;
 import org.springframework.lang.Nullable;
 
 import java.util.ArrayList;
@@ -16,6 +17,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Actuator endpoint (id = "faultinjector") that exposes the live state of the
@@ -63,7 +66,7 @@ public class FaultInjectionEndpoint {
             view.put("mode", rule.getMode());
             view.put("hostPattern", rule.getHostPattern());
             view.put("urlPattern", rule.getUrlPattern());
-            view.put("methods", rule.safeMethods());
+            view.put("methods", methodNames(rule.safeMethods()));
             view.put("probability", rule.getProbability());
             view.put("everyN", rule.getEveryN());
             view.put("delayMs", rule.getDelayMs());
@@ -114,6 +117,10 @@ public class FaultInjectionEndpoint {
                 throw new IllegalArgumentException("Unknown action: " + action);
         }
         return Collections.singletonMap("status", "applied");
+    }
+
+    private static List<String> methodNames(Set<HttpMethod> methods) {
+        return methods.stream().map(HttpMethod::name).sorted().collect(Collectors.toList());
     }
 
     private Rule requireRule(String name) {
