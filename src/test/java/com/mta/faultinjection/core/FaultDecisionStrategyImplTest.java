@@ -2,6 +2,8 @@ package com.mta.faultinjection.core;
 
 import com.mta.faultinjection.config.FaultInjectionProperties;
 import com.mta.faultinjection.config.FaultInjectionProperties.Rule;
+import com.mta.faultinjection.telemetry.FaultInjectionEvent;
+import com.mta.faultinjection.telemetry.FaultInjectionTelemetry;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 
@@ -146,6 +148,41 @@ class FaultDecisionStrategyImplTest {
         var metrics = strategy.metricsSnapshot().get("counted");
         assertThat(metrics.matchCount()).isEqualTo(5);
         assertThat(metrics.triggerCount()).isEqualTo(2);
+    }
+
+    @Test
+    void telemetryHooksFireForMatchAndTrigger() {
+        FaultInjectionProperties props = enabled();
+        Rule r = delayRule("instrumented", null, 10);
+        props.getRules().add(r);
+
+        FaultInjectionTelemetry telemetry = new FaultInjectionTelemetry(50, 60_000L, 4);
+        FaultDecisionStrategyImpl strategy = new FaultDecisionStrategyImpl(props, () -> 0.0d, telemetry);
+
+        strategy.decide(HttpMethod.GET, ANY_URI);
+
+        // One match, one trigger → two events recorded.
+        List<FaultInjectionEvent> events = telemetry.recentEvents(0);
+        assertThat(events).hasSize(2);
+        assertThat(events).extracting(FaultInjectionEvent::outcome)
+                .containsExactly(FaultInjectionEvent.Outcome.FIRED, FaultInjectionEvent.Outcome.MATCH_NO_FIRE);
+    }
+
+    @Test
+    void resetMetricsClearsCounters() {
+        FaultInjectionProperties props = enabled();
+        props.getRules().add(delayRule("clearme", null, 10));
+        FaultDecisionStrategyImpl strategy = alwaysTrigger(props);
+        strategy.decide(HttpMethod.GET, ANY_URI);
+        assertThat(strategy.metricsSnapshot().get("clearme").matchCount()).isEqualTo(1L);
+
+        strategy.resetMetrics();
+
+        // metricsSnapshot() rebuilds zeroed entries for every rule, so the assertion
+        // is on the counter values rather than the map key.
+        var post = strategy.metricsSnapshot().get("clearme");
+        assertThat(post.matchCount()).isZero();
+        assertThat(post.triggerCount()).isZero();
     }
 
     @Test

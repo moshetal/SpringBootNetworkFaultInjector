@@ -6,11 +6,11 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.http.HttpMethod;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Type-safe configuration mapped from the "fault.injection" namespace.
@@ -29,8 +29,15 @@ public class FaultInjectionProperties {
     /** Shared fallbacks for rule fields. */
     private Defaults defaults = new Defaults();
 
-    /** Ordered rules; first match wins. */
-    private List<Rule> rules = new ArrayList<>();
+    /**
+     * Ordered rules; first match wins. Backed by {@link CopyOnWriteArrayList} so
+     * the bundled UI can add/remove rules at runtime without coordinating with
+     * concurrent {@code decide()} traversal.
+     */
+    private List<Rule> rules = new CopyOnWriteArrayList<>();
+
+    /** Settings for the bundled web UI (gated by {@code fault.injection.ui.enabled}). */
+    private Ui ui = new Ui();
 
     /**
      * Default values applied when a rule omits a field.
@@ -93,5 +100,32 @@ public class FaultInjectionProperties {
         public Set<HttpMethod> safeMethods() {
             return methods == null ? Collections.emptySet() : methods;
         }
+    }
+
+    /**
+     * Settings for the bundled, "Swagger-style" UI served by this starter.
+     * <p>
+     * The UI is only registered when Spring MVC is on the classpath; switching
+     * {@link #enabled} to {@code false} opts out entirely.
+     */
+    @Data
+    public static class Ui {
+        /** Master switch for the bundled UI. */
+        private boolean enabled = true;
+
+        /** Path prefix the UI is mounted under (no trailing slash). */
+        private String path = "/fault-injector";
+
+        /** Maximum number of recent decisions retained for the UI's events log. */
+        private int eventBufferSize = 1000;
+
+        /** Width of one time-series bucket in seconds. */
+        private int timeseriesBucketSeconds = 10;
+
+        /** Number of time-series buckets retained (rolling window). */
+        private int timeseriesBuckets = 60;
+
+        /** UI hint: how often the page should re-poll backend snapshots. */
+        private int snapshotPollMs = 2000;
     }
 }
