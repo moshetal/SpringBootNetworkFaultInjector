@@ -76,7 +76,12 @@
                     <h2 class="card-title">Rules</h2>
                     <p class="card-sub">First match wins. Click a row to edit. Changes apply immediately.</p>
                 </div>
-                <button id="add-rule-btn" class="ml-auto px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm">
+                <a id="download-config-btn"
+                   href="./api/config/export?format=yaml"
+                   class="ml-auto px-3 py-1.5 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">
+                    Download config
+                </a>
+                <button id="add-rule-btn" class="px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm">
                     + Add rule
                 </button>
             </div>

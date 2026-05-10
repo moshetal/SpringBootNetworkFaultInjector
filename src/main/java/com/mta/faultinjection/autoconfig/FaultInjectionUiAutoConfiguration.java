@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 import org.springframework.web.servlet.DispatcherServlet;
 
 /**
@@ -49,8 +50,9 @@ public class FaultInjectionUiAutoConfiguration {
     @ConditionalOnMissingBean
     public FaultInjectorUiController faultInjectorUiController(FaultInjectionProperties properties,
                                                                FaultDecisionStrategy strategy,
-                                                               FaultInjectionTelemetry telemetry) {
-        return new FaultInjectorUiController(properties, strategy, telemetry);
+                                                               FaultInjectionTelemetry telemetry,
+                                                               Environment environment) {
+        return new FaultInjectorUiController(properties, strategy, telemetry, environment);
     }
 
     @Bean

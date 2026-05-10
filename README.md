@@ -174,6 +174,16 @@ HTTP server is running). Mutations are written into the live
 **not** survive a restart, by design (use `application.yml` for durable
 configuration).
 
+### Promoting runtime edits to durable config
+
+Click **Download config** in the Configuration tab to download the current
+`fault.injection.*` tree as `fault-injection.yml`. The file mirrors the layout
+of `application.yml` exactly (kebab-case keys, null overrides omitted, methods
+as a list of strings), so you can paste its contents under `fault:` in your
+project's `application.yml` to make the edits survive a restart. The same data
+is also reachable programmatically at
+`GET /fault-injector/api/config/export?format=yaml`.
+
 ## Build
 
 ```bash
