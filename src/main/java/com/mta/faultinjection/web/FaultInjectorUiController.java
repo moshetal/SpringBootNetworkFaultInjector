@@ -10,6 +10,14 @@ import com.mta.faultinjection.core.TriggerMode;
 import com.mta.faultinjection.telemetry.FaultInjectionEvent;
 import com.mta.faultinjection.telemetry.FaultInjectionTelemetry;
 import com.mta.faultinjection.telemetry.FaultInjectionTelemetry.TimeSeriesBucket;
+import org.springframework.boot.origin.Origin;
+import org.springframework.boot.origin.OriginTrackedValue;
+import org.springframework.boot.origin.TextResourceOrigin;
+import org.springframework.core.env.ConfigurableEnvironment;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.PropertySource;
+import org.springframework.boot.env.OriginTrackedMapPropertySource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -25,7 +33,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.Yaml;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -33,6 +47,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -58,13 +73,16 @@ public class FaultInjectorUiController {
     private final FaultInjectionProperties properties;
     private final FaultDecisionStrategy strategy;
     private final FaultInjectionTelemetry telemetry;
+    private final Environment environment;
 
     public FaultInjectorUiController(FaultInjectionProperties properties,
                                      FaultDecisionStrategy strategy,
-                                     FaultInjectionTelemetry telemetry) {
+                                     FaultInjectionTelemetry telemetry,
+                                     Environment environment) {
         this.properties = Objects.requireNonNull(properties, "properties");
         this.strategy = Objects.requireNonNull(strategy, "strategy");
         this.telemetry = Objects.requireNonNull(telemetry, "telemetry");
+        this.environment = environment;
     }
 
     // ------------------------------------------------------------------
@@ -265,6 +283,69 @@ public class FaultInjectorUiController {
                     .body(body);
         }
         throw badRequest("unsupported format: " + format);
+    }
+
+    /**
+     * Download a YAML document the user can drop into their project to make
+     * runtime mutations durable.
+     * <p>
+     * If the running application's {@code application.yml} (or {@code .yaml})
+     * was loaded from the file system, the response is that file's full
+     * content with its {@code fault:} block replaced by the live state —
+     * surrounding sections (server, management, logging, comments) preserved
+     * byte-for-byte. Otherwise (classpath-only, env-only, etc.) the response
+     * falls back to just the {@code fault.injection.*} subtree.
+     */
+    @GetMapping("/config/export")
+    public ResponseEntity<String> exportConfig(@RequestParam(defaultValue = "yaml") String format) {
+        String fmt = format.toLowerCase(Locale.ROOT);
+        if (!"yaml".equals(fmt) && !"yml".equals(fmt)) {
+            throw badRequest("unsupported format: " + format);
+        }
+        Optional<Path> sourceFile = findApplicationYamlPath();
+        if (sourceFile.isPresent()) {
+            try {
+                String original = Files.readString(sourceFile.get());
+                String merged = spliceFaultBlock(original, renderLiveFaultBlock());
+                String filename = sourceFile.get().getFileName().toString();
+                return ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType("application/yaml; charset=utf-8"))
+                        .header("Content-Disposition", "attachment; filename=" + filename)
+                        .body(merged);
+            } catch (IOException ignored) {
+                // Fall through to the simpler subtree-only download.
+            }
+        }
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/yaml; charset=utf-8"))
+                .header("Content-Disposition", "attachment; filename=fault-injection.yml")
+                .body(renderLiveFaultBlock());
+    }
+
+    /**
+     * Take the caller's existing {@code application.yml}, replace its top-level
+     * {@code fault:} block with the live fault-injection state, and return the
+     * merged result. Everything outside {@code fault:} — server config,
+     * management, logging, comments, blank lines — is preserved byte-for-byte
+     * via textual splicing rather than parse + re-dump, so users don't lose
+     * the surrounding structure of their config file.
+     * <p>
+     * Comments <em>inside</em> the {@code fault:} block are not preserved
+     * (that subtree is regenerated from the live in-memory state).
+     */
+    @PostMapping(value = "/config/merge",
+                 consumes = {MediaType.TEXT_PLAIN_VALUE, MediaType.APPLICATION_OCTET_STREAM_VALUE,
+                             "application/yaml", "text/yaml", "text/x-yaml"},
+                 produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> mergeConfig(@RequestBody String existingYaml) {
+        if (existingYaml == null) {
+            throw badRequest("request body is required");
+        }
+        String merged = spliceFaultBlock(existingYaml, renderLiveFaultBlock());
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/yaml; charset=utf-8"))
+                .header("Content-Disposition", "attachment; filename=application-merged.yml")
+                .body(merged);
     }
 
     // ------------------------------------------------------------------
@@ -470,5 +551,270 @@ public class FaultInjectorUiController {
         boolean needsQuoting = s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0;
         String escaped = s.replace("\"", "\"\"");
         return needsQuoting ? "\"" + escaped + "\"" : escaped;
+    }
+
+    // ------------------------------------------------------------------
+    // YAML config export
+    // ------------------------------------------------------------------
+
+    /**
+     * Walk Spring's property sources looking for an {@code application.yml}
+     * (or {@code application-{profile}.yml}) that was loaded from the local
+     * file system, and return its absolute {@link Path}. Returns empty when
+     * config came only from classpath jars, environment variables, or other
+     * non-file sources — in which case the caller falls back to the simple
+     * subtree-only download.
+     * <p>
+     * Spring Boot's YAML loader produces {@link OriginTrackedMapPropertySource}
+     * instances whose entries are {@link OriginTrackedValue}s carrying a
+     * {@link TextResourceOrigin}. We follow the chain back to the resource
+     * and check whether it's a file we can read.
+     */
+    Optional<Path> findApplicationYamlPath() {
+        if (!(environment instanceof ConfigurableEnvironment ce)) {
+            return Optional.empty();
+        }
+        for (PropertySource<?> ps : ce.getPropertySources()) {
+            if (!(ps instanceof OriginTrackedMapPropertySource otps)) {
+                continue;
+            }
+            for (Object value : otps.getSource().values()) {
+                if (!(value instanceof OriginTrackedValue otv)) {
+                    continue;
+                }
+                Path file = resolveResourceFile(otv.getOrigin());
+                if (file != null && isApplicationYaml(file)) {
+                    return Optional.of(file);
+                }
+                // First entry of a source is enough to identify the file —
+                // every entry in the same source has the same origin resource.
+                break;
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static Path resolveResourceFile(Origin origin) {
+        // TextResourceOrigin can be wrapped (e.g. by profile-specific origins),
+        // so unwrap by following the parent chain too.
+        Origin current = origin;
+        while (current != null) {
+            if (current instanceof TextResourceOrigin tro) {
+                Resource resource = tro.getResource();
+                if (resource != null) {
+                    try {
+                        File f = resource.getFile();
+                        return f != null ? f.toPath().toAbsolutePath() : null;
+                    } catch (IOException | UnsupportedOperationException e) {
+                        return null; // resource isn't a file (classpath jar, etc.)
+                    }
+                }
+                return null;
+            }
+            current = current.getParent();
+        }
+        return null;
+    }
+
+    private static boolean isApplicationYaml(Path path) {
+        String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+        if (!name.endsWith(".yml") && !name.endsWith(".yaml")) {
+            return false;
+        }
+        return name.equals("application.yml") || name.equals("application.yaml")
+                || name.startsWith("application-");
+    }
+
+    /** Render the live {@code fault:} subtree as a self-contained YAML document. */
+    private String renderLiveFaultBlock() {
+        DumperOptions opts = new DumperOptions();
+        opts.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        opts.setIndent(2);
+        opts.setPrettyFlow(true);
+        return new Yaml(opts).dump(buildConfigYamlTree());
+    }
+
+    /**
+     * Replace the existing top-level {@code fault:} block in {@code original}
+     * with {@code liveBlock}. If {@code original} has no {@code fault:} block,
+     * append the new one to the end (separated by a blank line).
+     * <p>
+     * The "fault block" is everything from the line that starts with
+     * {@code fault:} (no leading whitespace) up to — but not including — the
+     * next sibling key (another line starting at column zero with non-whitespace
+     * content), or end-of-input. Comments and blank lines that immediately
+     * precede the next sibling key are kept with the sibling (they "belong" to
+     * what follows, not to the fault block we're replacing).
+     */
+    static String spliceFaultBlock(String original, String liveBlock) {
+        // Normalize line endings so the splice math doesn't have to track CRLF
+        // separately. We re-emit with `\n`; users running on Windows can convert
+        // back if they need CRLF in source control.
+        String normalized = original.replace("\r\n", "\n").replace('\r', '\n');
+        String[] lines = normalized.split("\n", -1);
+
+        int faultStart = -1;
+        for (int i = 0; i < lines.length; i++) {
+            if (isTopLevelFaultLine(lines[i])) {
+                faultStart = i;
+                break;
+            }
+        }
+
+        if (faultStart < 0) {
+            // No existing fault block — append the live one at the end with a
+            // separating blank line so the result still parses as one document.
+            StringBuilder sb = new StringBuilder(normalized);
+            if (!normalized.isEmpty() && !normalized.endsWith("\n")) {
+                sb.append('\n');
+            }
+            if (!normalized.endsWith("\n\n") && !normalized.isEmpty()) {
+                sb.append('\n');
+            }
+            sb.append(liveBlock);
+            if (!liveBlock.endsWith("\n")) {
+                sb.append('\n');
+            }
+            return sb.toString();
+        }
+
+        // Walk forward from the line after fault: until we hit the next
+        // top-level key. That's the end of the block being replaced.
+        int faultEnd = lines.length;
+        for (int i = faultStart + 1; i < lines.length; i++) {
+            if (isTopLevelKeyLine(lines[i])) {
+                faultEnd = i;
+                break;
+            }
+        }
+
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < faultStart; i++) {
+            out.append(lines[i]).append('\n');
+        }
+        out.append(liveBlock);
+        if (!liveBlock.endsWith("\n")) {
+            out.append('\n');
+        }
+        for (int i = faultEnd; i < lines.length; i++) {
+            out.append(lines[i]);
+            if (i < lines.length - 1) {
+                out.append('\n');
+            }
+        }
+        // Preserve a trailing newline only if the original had one.
+        if (normalized.endsWith("\n") && (out.length() == 0 || out.charAt(out.length() - 1) != '\n')) {
+            out.append('\n');
+        }
+        return out.toString();
+    }
+
+    /** True if {@code line} is the top-level {@code fault:} key (no indent). */
+    private static boolean isTopLevelFaultLine(String line) {
+        if (line == null || line.isEmpty() || Character.isWhitespace(line.charAt(0))) {
+            return false;
+        }
+        String trimmedKey;
+        int colon = line.indexOf(':');
+        if (colon < 0) {
+            return false;
+        }
+        trimmedKey = line.substring(0, colon).trim();
+        return "fault".equals(trimmedKey);
+    }
+
+    /**
+     * True if {@code line} is a top-level YAML key — column zero, non-blank,
+     * not a comment. Used to detect the boundary where the fault: block ends.
+     */
+    private static boolean isTopLevelKeyLine(String line) {
+        if (line == null || line.isEmpty()) {
+            return false;
+        }
+        char c = line.charAt(0);
+        if (Character.isWhitespace(c) || c == '#' || c == '-') {
+            return false;
+        }
+        return line.contains(":");
+    }
+
+    /**
+     * Build a {@code Map} tree shaped exactly like the {@code application.yml}
+     * a user would write by hand — root key {@code fault.injection.*}, kebab-case
+     * field names, null overrides on rules omitted so they cascade to defaults.
+     */
+    private Map<String, Object> buildConfigYamlTree() {
+        Map<String, Object> injection = new LinkedHashMap<>();
+        injection.put("enabled", properties.isEnabled());
+        injection.put("defaults", defaultsAsMap(properties.getDefaults()));
+
+        List<Map<String, Object>> rules = new ArrayList<>(properties.getRules().size());
+        for (Rule rule : properties.getRules()) {
+            rules.add(ruleAsMap(rule));
+        }
+        injection.put("rules", rules);
+
+        Map<String, Object> fault = new LinkedHashMap<>();
+        fault.put("injection", injection);
+        Map<String, Object> root = new LinkedHashMap<>();
+        root.put("fault", fault);
+        return root;
+    }
+
+    private static Map<String, Object> defaultsAsMap(FaultInjectionProperties.Defaults d) {
+        // All six fields always emitted — they're primitive and small, and a
+        // user replacing their yaml expects to see the full defaults block.
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("delay-ms", d.getDelayMs());
+        out.put("error-status", d.getErrorStatus());
+        out.put("error-message", d.getErrorMessage());
+        out.put("mode", d.getMode() != null ? d.getMode().name() : null);
+        out.put("probability", d.getProbability());
+        out.put("every-n", d.getEveryN());
+        return out;
+    }
+
+    private static Map<String, Object> ruleAsMap(Rule rule) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (rule.getName() != null) {
+            out.put("name", rule.getName());
+        }
+        // The starter's Rule defaults `enabled` to true. Only emit the key when
+        // it diverges, mirroring the demo's application.yml style.
+        if (!rule.isEnabled()) {
+            out.put("enabled", false);
+        }
+        if (rule.getHostPattern() != null && !rule.getHostPattern().isBlank()) {
+            out.put("host-pattern", rule.getHostPattern());
+        }
+        if (rule.getUrlPattern() != null && !rule.getUrlPattern().isBlank()) {
+            out.put("url-pattern", rule.getUrlPattern());
+        }
+        Set<HttpMethod> methods = rule.safeMethods();
+        if (!methods.isEmpty()) {
+            out.put("methods", methods.stream().map(HttpMethod::name).sorted().collect(Collectors.toList()));
+        }
+        if (rule.getFault() != null) {
+            out.put("fault", rule.getFault().name());
+        }
+        if (rule.getMode() != null) {
+            out.put("mode", rule.getMode().name());
+        }
+        if (rule.getProbability() != null) {
+            out.put("probability", rule.getProbability());
+        }
+        if (rule.getEveryN() != null) {
+            out.put("every-n", rule.getEveryN());
+        }
+        if (rule.getDelayMs() != null) {
+            out.put("delay-ms", rule.getDelayMs());
+        }
+        if (rule.getErrorStatus() != null) {
+            out.put("error-status", rule.getErrorStatus());
+        }
+        if (rule.getErrorMessage() != null) {
+            out.put("error-message", rule.getErrorMessage());
+        }
+        return out;
     }
 }
