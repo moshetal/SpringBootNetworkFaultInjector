@@ -46,6 +46,11 @@ public class FaultInjectorUiController {
         return uiService.setEnabled(body);
     }
 
+    @PutMapping("/defaults")
+    public Map<String, Object> updateDefaults(@RequestBody FaultInjectorUiDtos.DefaultsDto body) {
+        return uiService.updateDefaults(body);
+    }
+
     @PostMapping("/rules")
     public ResponseEntity<Map<String, Object>> addRule(@RequestBody FaultInjectorUiDtos.RuleDto dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(uiService.addRule(dto));

@@ -2,6 +2,7 @@ package com.mta.faultinjection.web;
 
 import com.mta.faultinjection.api.FaultInjectorViewJsonKeys;
 import com.mta.faultinjection.config.FaultInjectionProperties;
+import com.mta.faultinjection.config.FaultInjectionProperties.Defaults;
 import com.mta.faultinjection.config.FaultInjectionProperties.Rule;
 import com.mta.faultinjection.core.FaultDecisionStrategy;
 import com.mta.faultinjection.core.FaultDecisionStrategyImpl;
@@ -103,6 +104,48 @@ public class FaultInjectorUiService {
         }
         properties.setEnabled(body.enabled);
         return Map.of(FaultInjectorViewJsonKeys.ENABLED, properties.isEnabled());
+    }
+
+    // ------------------------------------------------------------------
+    // Defaults
+    // ------------------------------------------------------------------
+
+    public Map<String, Object> updateDefaults(FaultInjectorUiDtos.DefaultsDto dto) {
+        if (dto == null) {
+            throw badRequest("body is required");
+        }
+        Defaults d = properties.getDefaults();
+        if (dto.delayMs != null) {
+            if (dto.delayMs < 0L) {
+                throw badRequest("'delayMs' must be >= 0");
+            }
+            d.setDelayMs(dto.delayMs);
+        }
+        if (dto.errorStatus != null) {
+            if (dto.errorStatus < 100 || dto.errorStatus > 599) {
+                throw badRequest("'errorStatus' must be between 100 and 599");
+            }
+            d.setErrorStatus(dto.errorStatus);
+        }
+        if (dto.errorMessage != null) {
+            d.setErrorMessage(dto.errorMessage);
+        }
+        if (dto.mode != null) {
+            d.setMode(parseEnum(TriggerMode.class, "mode", dto.mode));
+        }
+        if (dto.probability != null) {
+            if (dto.probability < 0.0d || dto.probability > 1.0d) {
+                throw badRequest("'probability' must be in [0.0, 1.0]");
+            }
+            d.setProbability(dto.probability);
+        }
+        if (dto.everyN != null) {
+            if (dto.everyN < 0) {
+                throw badRequest("'everyN' must be >= 0");
+            }
+            d.setEveryN(dto.everyN);
+        }
+        return Map.of(FaultInjectorViewJsonKeys.DEFAULTS, properties.getDefaults());
     }
 
     // ------------------------------------------------------------------

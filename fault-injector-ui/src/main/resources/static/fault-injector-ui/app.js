@@ -58,7 +58,7 @@ function el(tag, attrs = {}, children = []) {
         if (v == null || v === false) continue;
         if (k === 'className') node.className = v;
         else if (k === 'dataset') Object.assign(node.dataset, v);
-        else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2), v);
+        else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2).toLowerCase(), v);
         else if (v === true) node.setAttribute(k, '');
         else node.setAttribute(k, v);
     }
@@ -67,6 +67,27 @@ function el(tag, attrs = {}, children = []) {
         node.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
     }
     return node;
+}
+
+/** Visual on/off switch; keeps a real checkbox for forms and a11y. */
+function makeFiToggle(checked, opts = {}) {
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = !!checked;
+    if (opts.ariaLabel) input.setAttribute('aria-label', opts.ariaLabel);
+    if (opts.name) input.name = opts.name;
+    if (opts.onChange) input.addEventListener('change', opts.onChange);
+    const track = document.createElement('span');
+    track.className = 'fi-toggle-track';
+    const thumb = document.createElement('span');
+    thumb.className = 'fi-toggle-thumb';
+    track.appendChild(thumb);
+    const lab = document.createElement('label');
+    lab.className = 'fi-toggle' + (opts.small ? ' fi-toggle--sm' : '') + (opts.className ? ` ${opts.className}` : '');
+    if (opts.title) lab.title = opts.title;
+    lab.appendChild(input);
+    lab.appendChild(track);
+    return lab;
 }
 
 function fmtNumber(n) {
@@ -120,19 +141,8 @@ function renderConfig(cfg) {
     $('#kpi-mount-path').textContent = cfg.ui?.path || '/fault-injector';
     $('#event-cap').textContent = cfg.ui?.eventBufferSize ?? '?';
 
-    const pill = $('#global-status-pill');
-    const btn  = $('#global-toggle');
-    if (cfg.enabled) {
-        pill.textContent = 'Global: on';
-        pill.classList.remove('status-off');
-        pill.classList.add('status-on');
-        btn.textContent = 'Disable';
-    } else {
-        pill.textContent = 'Global: off';
-        pill.classList.remove('status-on');
-        pill.classList.add('status-off');
-        btn.textContent = 'Enable';
-    }
+    const ge = $('#global-enabled');
+    if (ge) ge.checked = !!cfg.enabled;
 
     renderDefaults(cfg.defaults);
     renderRules(cfg.rules);
@@ -168,21 +178,31 @@ function renderRules(rules) {
     for (const rule of rules) {
         const pills = [];
         if (rule.fault) pills.push(el('span', { className: `rule-pill ${rule.fault.toLowerCase()}` }, rule.fault));
-        if (rule.mode)  pills.push(el('span', { className: 'rule-pill mode' }, rule.mode));
+        if (rule.mode) pills.push(el('span', { className: 'rule-pill mode' }, rule.mode));
 
         const meta = [];
         if (rule.hostPattern) meta.push(`host=${rule.hostPattern}`);
-        if (rule.urlPattern)  meta.push(`url=${rule.urlPattern}`);
+        if (rule.urlPattern) meta.push(`url=${rule.urlPattern}`);
         if (rule.methods?.length) meta.push(`methods=${rule.methods.join(',')}`);
         if (rule.mode === 'PROBABILITY' && rule.probability != null) meta.push(`p=${rule.probability}`);
         if (rule.mode === 'EVERY_N' && rule.everyN) meta.push(`every=${rule.everyN}`);
+
+        const ruleToggle = makeFiToggle(rule.enabled, {
+            small: true,
+            title: 'Turn rule on or off',
+            ariaLabel: `Rule ${rule.name || '(unnamed)'} enabled`,
+            onChange: (ev) => onRuleEnabledToggle(rule, ev),
+        });
+        const toggleWrap = el('div', {
+            className: 'flex items-center shrink-0',
+            onclick: (ev) => ev.stopPropagation(),
+        }, [ruleToggle]);
 
         const row = el('div', {
             className: 'rule-row' + (rule.enabled ? '' : ' disabled'),
             onclick: () => openRuleModal(rule),
         }, [
-            el('span', { className: rule.enabled ? 'status-pill status-on' : 'status-pill status-off' },
-                rule.enabled ? 'on' : 'off'),
+            toggleWrap,
             el('div', { className: 'flex-1 min-w-0' }, [
                 el('div', { className: 'rule-name' }, rule.name || '(unnamed)'),
                 el('div', { className: 'rule-meta' }, meta.join('  ·  ') || 'matches any request'),
@@ -293,13 +313,36 @@ function renderTimeSeries(ts) {
 // Mutations
 // ---------------------------------------------------------------------------
 
-async function toggleGlobal() {
+async function onGlobalEnabledToggle(ev) {
+    const input = ev.target;
+    const want = input.checked;
     try {
-        const next = !state.config?.enabled;
-        await api('POST', '/enabled', { enabled: next });
+        await api('POST', '/enabled', { enabled: want });
         await refreshAll();
-        toast(`Fault injection ${next ? 'enabled' : 'disabled'}.`);
-    } catch (e) { toast(e.message, 'error'); }
+        toast(`Fault injection ${want ? 'on' : 'off'}.`);
+    } catch (err) {
+        input.checked = !want;
+        toast(err.message, 'error');
+    }
+}
+
+async function onRuleEnabledToggle(rule, ev) {
+    const input = ev.target;
+    const want = input.checked;
+    const name = rule.name;
+    if (!name) {
+        input.checked = !want;
+        toast('Rule has no name.', 'error');
+        return;
+    }
+    try {
+        await api('POST', `/rules/${encodeURIComponent(name)}/enabled`, { enabled: want });
+        await refreshAll();
+        toast(`Rule "${name}" ${want ? 'on' : 'off'}.`);
+    } catch (err) {
+        input.checked = !want;
+        toast(err.message, 'error');
+    }
 }
 
 async function resetMetrics(name) {
@@ -329,6 +372,7 @@ function openRuleModal(rule) {
     form.elements.name.disabled = !!rule;
     if (rule) {
         form.elements.name.value         = rule.name ?? '';
+        form.elements.ruleEnabled.checked = rule.enabled !== false;
         form.elements.fault.value        = rule.fault ?? 'DELAY';
         form.elements.mode.value         = rule.mode ?? '';
         form.elements.hostPattern.value  = rule.hostPattern ?? '';
@@ -340,11 +384,12 @@ function openRuleModal(rule) {
         form.elements.errorStatus.value  = rule.errorStatus ?? '';
         form.elements.errorMessage.value = rule.errorMessage ?? '';
     } else {
+        form.elements.ruleEnabled.checked = true;
         form.elements.fault.value       = 'DELAY';
         form.elements.probability.value = 0;
     }
     syncProbabilityDisplay();
-    $('#rule-form-delete').classList.toggle('hidden', !rule);
+    $('#rule-modal-delete').classList.toggle('hidden', !rule);
     $('#rule-modal').classList.remove('hidden');
 }
 
@@ -363,6 +408,7 @@ function readRuleForm() {
     const f = $('#rule-form').elements;
     const dto = {
         name:        f.name.value.trim() || null,
+        enabled:     f.ruleEnabled.checked,
         fault:       f.fault.value || null,
         mode:        f.mode.value || null,
         hostPattern: f.hostPattern.value.trim() || null,
@@ -417,6 +463,72 @@ async function deleteCurrentRule() {
 }
 
 // ---------------------------------------------------------------------------
+// Defaults modal
+// ---------------------------------------------------------------------------
+
+function syncDefaultsProbabilityDisplay() {
+    const v = parseFloat($('#defaults-form').elements.probability.value || '0');
+    $('#defaults-prob-display').textContent = v.toFixed(2);
+}
+
+function openDefaultsModal() {
+    const d = state.config?.defaults;
+    if (!d) {
+        toast('No defaults loaded yet.', 'error');
+        return;
+    }
+    state.pollSuspended = true;
+    const f = $('#defaults-form');
+    f.reset();
+    f.elements.mode.value = d.mode || 'PROBABILITY';
+    f.elements.delayMs.value = d.delayMs ?? 0;
+    f.elements.probability.value = d.probability ?? 0;
+    f.elements.everyN.value = d.everyN ?? 0;
+    f.elements.errorStatus.value = d.errorStatus ?? 503;
+    f.elements.errorMessage.value = d.errorMessage ?? '';
+    syncDefaultsProbabilityDisplay();
+    $('#defaults-form-error').classList.add('hidden');
+    $('#defaults-modal').classList.remove('hidden');
+}
+
+function closeDefaultsModal() {
+    $('#defaults-modal').classList.add('hidden');
+    state.pollSuspended = false;
+}
+
+function readDefaultsForm() {
+    const f = $('#defaults-form').elements;
+    const delayMs = parseInt(f.delayMs.value, 10);
+    const everyN = parseInt(f.everyN.value, 10);
+    const errorStatus = parseInt(f.errorStatus.value, 10);
+    const probability = parseFloat(f.probability.value);
+    return {
+        mode: f.mode.value || null,
+        delayMs: Number.isNaN(delayMs) ? null : delayMs,
+        everyN: Number.isNaN(everyN) ? null : everyN,
+        errorStatus: Number.isNaN(errorStatus) ? null : errorStatus,
+        errorMessage: f.errorMessage.value,
+        probability: Number.isNaN(probability) ? null : probability,
+    };
+}
+
+async function submitDefaultsForm(e) {
+    e.preventDefault();
+    const errBox = $('#defaults-form-error');
+    errBox.classList.add('hidden');
+    const dto = readDefaultsForm();
+    try {
+        await api('PUT', '/defaults', dto);
+        toast('Defaults updated.');
+        closeDefaultsModal();
+        await refreshAll();
+    } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove('hidden');
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Polling
 // ---------------------------------------------------------------------------
 
@@ -454,19 +566,26 @@ function wireUp() {
     $$('.tab-btn').forEach(b => b.addEventListener('click', () => selectTab(b.dataset.tab)));
     selectTab('config');
 
-    $('#global-toggle').addEventListener('click', toggleGlobal);
+    $('#global-enabled').addEventListener('change', onGlobalEnabledToggle);
     $('#add-rule-btn').addEventListener('click', () => openRuleModal(null));
     $('#reset-metrics-btn').addEventListener('click', () => resetMetrics(null));
     $('#export-csv-btn').addEventListener('click', () => { window.location.href = `${API_BASE}/export?format=csv`; });
     $('#export-json-btn').addEventListener('click', () => { window.location.href = `${API_BASE}/export?format=json`; });
 
     $$('#rule-modal [data-modal-close]').forEach(b => b.addEventListener('click', closeRuleModal));
+    $('#rule-modal-delete').addEventListener('click', () => void deleteCurrentRule());
     $('#rule-form').addEventListener('submit', submitRuleForm);
-    $('#rule-form-delete').addEventListener('click', deleteCurrentRule);
     $('#rule-form').elements.probability.addEventListener('input', syncProbabilityDisplay);
 
+    $('#edit-defaults-btn').addEventListener('click', openDefaultsModal);
+    $('#defaults-form').addEventListener('submit', submitDefaultsForm);
+    $('#defaults-form').elements.probability.addEventListener('input', syncDefaultsProbabilityDisplay);
+    $$('[data-defaults-modal-close]').forEach(b => b.addEventListener('click', closeDefaultsModal));
+
     document.addEventListener('keydown', e => {
-        if (e.key === 'Escape' && !$('#rule-modal').classList.contains('hidden')) closeRuleModal();
+        if (e.key !== 'Escape') return;
+        if (!$('#defaults-modal').classList.contains('hidden')) closeDefaultsModal();
+        else if (!$('#rule-modal').classList.contains('hidden')) closeRuleModal();
     });
 }
 

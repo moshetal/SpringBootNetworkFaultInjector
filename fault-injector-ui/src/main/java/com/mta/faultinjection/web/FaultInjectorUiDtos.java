@@ -15,6 +15,16 @@ public final class FaultInjectorUiDtos {
         public String name;
     }
 
+    /** Partial update body for {@code fault.injection.defaults} (null fields are ignored). */
+    public static class DefaultsDto {
+        public Long delayMs;
+        public Integer errorStatus;
+        public String errorMessage;
+        public String mode;
+        public Double probability;
+        public Integer everyN;
+    }
+
     public static class RuleDto {
         public String name;
         public Boolean enabled;

@@ -85,6 +85,31 @@ class FaultInjectorUiControllerTest {
     }
 
     @Test
+    void updateDefaultsMutatesLiveBean() throws Exception {
+        mvc.perform(put("/fault-injector/api/defaults")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(
+                                "{\"delayMs\":250,\"errorStatus\":502,\"errorMessage\":\"custom\",\"mode\":\"EVERY_N\",\"probability\":0.25,\"everyN\":2}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.defaults.delayMs").value(250))
+                .andExpect(jsonPath("$.defaults.mode").value("EVERY_N"));
+        assertThat(properties.getDefaults().getDelayMs()).isEqualTo(250L);
+        assertThat(properties.getDefaults().getErrorStatus()).isEqualTo(502);
+        assertThat(properties.getDefaults().getErrorMessage()).isEqualTo("custom");
+        assertThat(properties.getDefaults().getMode()).isEqualTo(TriggerMode.EVERY_N);
+        assertThat(properties.getDefaults().getProbability()).isEqualTo(0.25);
+        assertThat(properties.getDefaults().getEveryN()).isEqualTo(2);
+    }
+
+    @Test
+    void updateDefaultsRejectsBadHttpStatus() throws Exception {
+        mvc.perform(put("/fault-injector/api/defaults")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"errorStatus\":99}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void addRuleAppendsToProperties() throws Exception {
         Map<String, Object> body = Map.of(
                 "name", "added",

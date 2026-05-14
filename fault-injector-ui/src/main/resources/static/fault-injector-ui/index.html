@@ -31,12 +31,13 @@
             <button data-tab="reference" class="tab-btn px-3 py-1.5 rounded-md font-medium">Reference</button>
         </nav>
 
-        <label class="flex items-center gap-2 ml-2 sm:ml-4">
-            <span id="global-status-pill" class="status-pill status-off">Global: off</span>
-            <button id="global-toggle" type="button" class="px-3 py-1.5 rounded-md text-sm font-medium bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-800 hover:opacity-90">
-                Enable
-            </button>
-        </label>
+        <div class="flex items-center gap-2 ml-2 sm:ml-4">
+            <span class="text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">Fault injection</span>
+            <label class="fi-toggle" title="Turn fault injection on or off">
+                <input type="checkbox" id="global-enabled" aria-label="Fault injection enabled" />
+                <span class="fi-toggle-track"><span class="fi-toggle-thumb"></span></span>
+            </label>
+        </div>
     </div>
 </header>
 
@@ -61,9 +62,15 @@
         </div>
 
         <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Defaults</h2>
-                <p class="card-sub">Inherited by every rule that omits a field.</p>
+            <div class="card-header flex items-center gap-3">
+                <div class="flex-1 min-w-0">
+                    <h2 class="card-title">Defaults</h2>
+                    <p class="card-sub">Inherited by every rule that omits a field.</p>
+                </div>
+                <button id="edit-defaults-btn" type="button"
+                        class="px-3 py-1.5 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0">
+                    Edit defaults
+                </button>
             </div>
             <div class="card-body grid sm:grid-cols-2 lg:grid-cols-3 gap-3" id="defaults-grid">
                 <!-- populated by JS -->
@@ -147,7 +154,7 @@
                         <th class="text-right">Matches</th>
                         <th class="text-right">Triggers</th>
                         <th class="text-right">Trigger %</th>
-                        <th></th>
+                        <th class="text-right w-28">Actions</th>
                     </tr>
                     </thead>
                     <tbody id="metrics-tbody"></tbody>
@@ -189,6 +196,17 @@
                 <p class="card-sub">Recipes for common scenarios.</p>
             </div>
             <div class="card-body space-y-5 text-sm">
+
+                <div>
+                    <h3 class="font-semibold mb-1">Reports: matches vs triggers</h3>
+                    <ul class="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-300">
+                        <li><strong>Match</strong> — an outbound request hit this rule first (patterns + methods matched) while the rule was enabled. The counter still increments when the rule <em>matches</em> but does not inject a fault on that call.</li>
+                        <li><strong>Trigger</strong> — the rule matched <em>and</em> the engine decided to inject a fault for that call (probability roll succeeded, or EVERY_N fired on that ordinal).</li>
+                        <li><strong>Trigger %</strong> — <code>triggers ÷ matches</code> for that rule since the last metrics reset.</li>
+                        <li>In <code>EVERY_N</code> mode, only <code>every-n</code> drives firing; the <strong>probability</strong> slider is stored but <strong>not used</strong> for the decision (switch to <code>PROBABILITY</code> to use it).</li>
+                        <li>Changes in <code>application.yml</code> require an <strong>application restart</strong> to load. Use this UI (or the REST API) to toggle rules while the JVM is running.</li>
+                    </ul>
+                </div>
 
                 <div>
                     <h3 class="font-semibold mb-1">Match dimensions</h3>
@@ -249,9 +267,17 @@ curl -X POST ${HOST}/fault-injector/api/metrics/reset \
     <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" data-modal-close></div>
     <div class="absolute inset-0 overflow-y-auto p-4 grid place-items-center pointer-events-none">
         <div class="card w-full max-w-2xl pointer-events-auto">
-            <div class="card-header flex items-center gap-3">
-                <h2 class="card-title" id="rule-modal-title">Add rule</h2>
-                <button class="ml-auto text-slate-500 hover:text-slate-800 dark:hover:text-slate-100" data-modal-close aria-label="Close">
+            <div class="card-header flex items-center gap-2">
+                <h2 class="card-title flex-1 min-w-0" id="rule-modal-title">Add rule</h2>
+                <button type="button" id="rule-modal-delete" class="hidden p-2 rounded-md text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/30 shrink-0" aria-label="Delete rule" title="Delete rule">
+                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 6h18"/>
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
+                        <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                        <path d="M10 11v6M14 11v6"/>
+                    </svg>
+                </button>
+                <button type="button" class="p-2 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0" data-modal-close aria-label="Close">
                     <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                 </button>
             </div>
@@ -261,6 +287,14 @@ curl -X POST ${HOST}/fault-injector/api/metrics/reset \
                         <span>Name</span>
                         <input name="name" required pattern=".+" placeholder="my-flaky-rule" />
                     </label>
+                    <div class="form-field sm:col-span-2 flex flex-row items-center gap-3 select-none">
+                        <span class="text-sm font-medium">Rule enabled</span>
+                        <label class="fi-toggle" title="Turn this rule on or off">
+                            <input name="ruleEnabled" type="checkbox" aria-label="Rule enabled" />
+                            <span class="fi-toggle-track"><span class="fi-toggle-thumb"></span></span>
+                        </label>
+                        <span class="text-slate-400 font-normal text-xs">(same as <code class="text-xs">enabled:</code> in YAML)</span>
+                    </div>
                     <label class="form-field">
                         <span>Fault type</span>
                         <select name="fault">
@@ -313,7 +347,57 @@ curl -X POST ${HOST}/fault-injector/api/metrics/reset \
                     <div class="sm:col-span-2 flex items-center gap-2 pt-2">
                         <button type="submit" class="px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm">Save</button>
                         <button type="button" data-modal-close class="px-4 py-2 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">Cancel</button>
-                        <button type="button" id="rule-form-delete" class="ml-auto hidden px-4 py-2 rounded-md text-sm font-medium border border-rose-500/40 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10">Delete rule</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ Defaults edit modal ============ -->
+<div id="defaults-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" data-defaults-modal-close></div>
+    <div class="absolute inset-0 overflow-y-auto p-4 grid place-items-center pointer-events-none">
+        <div class="card w-full max-w-xl pointer-events-auto">
+            <div class="card-header flex items-center gap-2">
+                <h2 class="card-title flex-1">Edit defaults</h2>
+                <button type="button" class="p-2 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0" data-defaults-modal-close aria-label="Close">
+                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <div class="card-body">
+                <form id="defaults-form" class="grid sm:grid-cols-2 gap-3 text-sm" novalidate>
+                    <label class="form-field">
+                        <span>Trigger mode</span>
+                        <select name="mode">
+                            <option>PROBABILITY</option>
+                            <option>EVERY_N</option>
+                        </select>
+                    </label>
+                    <label class="form-field">
+                        <span>Delay (ms)</span>
+                        <input name="delayMs" type="number" min="0" required />
+                    </label>
+                    <label class="form-field">
+                        <span>Probability <span class="text-slate-400 font-normal" id="defaults-prob-display">0.00</span></span>
+                        <input name="probability" type="range" min="0" max="1" step="0.01" />
+                    </label>
+                    <label class="form-field">
+                        <span>Every N</span>
+                        <input name="everyN" type="number" min="0" placeholder="0 = off" required />
+                    </label>
+                    <label class="form-field">
+                        <span>Error status</span>
+                        <input name="errorStatus" type="number" min="100" max="599" required />
+                    </label>
+                    <label class="form-field sm:col-span-2">
+                        <span>Error message</span>
+                        <input name="errorMessage" required />
+                    </label>
+                    <div id="defaults-form-error" class="sm:col-span-2 hidden text-rose-500 bg-rose-500/10 border border-rose-500/30 rounded-md px-3 py-2"></div>
+                    <div class="sm:col-span-2 flex items-center gap-2 pt-2">
+                        <button type="submit" class="px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm">Save defaults</button>
+                        <button type="button" data-defaults-modal-close class="px-4 py-2 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">Cancel</button>
                     </div>
                 </form>
             </div>
