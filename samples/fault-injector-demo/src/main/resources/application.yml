@@ -29,6 +29,10 @@ fault:
   injection:
     enabled: true
 
+    ui:
+      enabled: true
+      path: /fault-injector
+
     # Inherited by every rule that omits the field. The "no-host" rule below
     # demonstrates this: it sets only delay-ms and inherits everything else.
     defaults:

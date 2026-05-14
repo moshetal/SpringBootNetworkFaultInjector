@@ -2,8 +2,8 @@
 /target/
 *.class
 
-# IntelliJ IDEA project files
-/.idea/
+# IntelliJ IDEA project files (any module, e.g. samples opened in a separate window)
+**/.idea/
 *.iml
 
 # VS Code project files
