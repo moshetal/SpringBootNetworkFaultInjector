@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Fault Injector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="./styles.css" />
+</head>
+<body class="h-full bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 font-sans antialiased">
+
+<header class="border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-4">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-fuchsia-500 grid place-items-center text-white shadow-sm">
+                <svg viewBox="0 0 24 24" fill="none" class="w-5 h-5"><path d="M13 2 L4 14 H11 L9 22 L20 9 H13 Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" /></svg>
+            </div>
+            <div>
+                <h1 class="text-lg font-semibold leading-tight">Fault Injector</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 leading-tight">Spring Boot Network Fault Injector UI</p>
+            </div>
+        </div>
+
+        <nav class="ml-auto flex items-center gap-1 sm:gap-2 text-sm">
+            <button data-tab="config" class="tab-btn px-3 py-1.5 rounded-md font-medium">Configuration</button>
+            <button data-tab="reports" class="tab-btn px-3 py-1.5 rounded-md font-medium">Reports</button>
+            <button data-tab="reference" class="tab-btn px-3 py-1.5 rounded-md font-medium">Reference</button>
+        </nav>
+
+        <div class="flex items-center gap-2 ml-2 sm:ml-4">
+            <span class="text-sm text-slate-600 dark:text-slate-300 whitespace-nowrap">Fault injection</span>
+            <label class="fi-toggle" title="Turn fault injection on or off">
+                <input type="checkbox" id="global-enabled" aria-label="Fault injection enabled" />
+                <span class="fi-toggle-track"><span class="fi-toggle-thumb"></span></span>
+            </label>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+
+    <!-- ============ Configuration tab ============ -->
+    <section id="tab-config" class="tab-panel space-y-6">
+
+        <div class="grid sm:grid-cols-3 gap-3">
+            <div class="kpi-card">
+                <div class="kpi-label">Rules</div>
+                <div class="kpi-value" id="kpi-rules-total">—</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Active rules</div>
+                <div class="kpi-value text-emerald-500" id="kpi-rules-active">—</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">UI mounted at</div>
+                <div class="kpi-value font-mono text-base truncate" id="kpi-mount-path">—</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header flex items-center gap-3">
+                <div class="flex-1 min-w-0">
+                    <h2 class="card-title">Defaults</h2>
+                    <p class="card-sub">Inherited by every rule that omits a field.</p>
+                </div>
+                <button id="edit-defaults-btn" type="button"
+                        class="px-3 py-1.5 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0">
+                    Edit defaults
+                </button>
+            </div>
+            <div class="card-body grid sm:grid-cols-2 lg:grid-cols-3 gap-3" id="defaults-grid">
+                <!-- populated by JS -->
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header flex items-center gap-3">
+                <div>
+                    <h2 class="card-title">Rules</h2>
+                    <p class="card-sub">First match wins. Click a row to edit. Changes apply immediately.</p>
+                </div>
+                <a id="download-config-btn"
+                   href="./api/config/export?format=yaml"
+                   class="ml-auto px-3 py-1.5 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">
+                    Download config
+                </a>
+                <button id="add-rule-btn" class="px-3 py-1.5 rounded-md text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm">
+                    + Add rule
+                </button>
+            </div>
+            <div class="card-body p-0" id="rules-list">
+                <!-- populated by JS -->
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ Reports tab ============ -->
+    <section id="tab-reports" class="tab-panel hidden space-y-6">
+
+        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div class="kpi-card">
+                <div class="kpi-label">Total matches</div>
+                <div class="kpi-value" id="kpi-matches">0</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Total triggers</div>
+                <div class="kpi-value text-rose-500" id="kpi-triggers">0</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Trigger rate</div>
+                <div class="kpi-value" id="kpi-trigger-rate">—</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Last fired</div>
+                <div class="kpi-value text-base" id="kpi-last-fired">never</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header flex items-center gap-3">
+                <div>
+                    <h2 class="card-title">Activity over time</h2>
+                    <p class="card-sub">Match vs trigger counts per bucket.</p>
+                </div>
+                <div class="ml-auto flex items-center gap-2">
+                    <button id="reset-metrics-btn" class="px-3 py-1.5 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">Reset metrics</button>
+                    <a id="export-csv-btn" href="#" class="px-3 py-1.5 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">Export CSV</a>
+                    <a id="export-json-btn" href="#" class="px-3 py-1.5 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">Export JSON</a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="chart-host">
+                    <canvas id="ts-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header flex items-center gap-3">
+                <div>
+                    <h2 class="card-title">Per-rule counters</h2>
+                    <p class="card-sub">Cumulative since last reset.</p>
+                </div>
+            </div>
+            <div class="card-body p-0 overflow-x-auto">
+                <table class="data-table">
+                    <thead>
+                    <tr>
+                        <th>Rule</th>
+                        <th class="text-right">Matches</th>
+                        <th class="text-right">Triggers</th>
+                        <th class="text-right">Trigger %</th>
+                        <th class="text-right w-28">Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody id="metrics-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Recent decisions</h2>
+                <p class="card-sub">Newest first. Live ring buffer of the last <span id="event-cap">N</span> matches and triggers.</p>
+            </div>
+            <div class="card-body p-0 overflow-x-auto">
+                <table class="data-table">
+                    <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Rule</th>
+                        <th>Outcome</th>
+                        <th>Method</th>
+                        <th>Host</th>
+                        <th>URL</th>
+                        <th>Fault</th>
+                        <th class="text-right">Delay</th>
+                        <th class="text-right">Status</th>
+                    </tr>
+                    </thead>
+                    <tbody id="events-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- ============ Reference tab ============ -->
+    <section id="tab-reference" class="tab-panel hidden space-y-6">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Quick reference</h2>
+                <p class="card-sub">Recipes for common scenarios.</p>
+            </div>
+            <div class="card-body space-y-5 text-sm">
+
+                <div>
+                    <h3 class="font-semibold mb-1">Reports: matches vs triggers</h3>
+                    <ul class="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-300">
+                        <li><strong>Match</strong> — an outbound request hit this rule first (patterns + methods matched) while the rule was enabled. The counter still increments when the rule <em>matches</em> but does not inject a fault on that call.</li>
+                        <li><strong>Trigger</strong> — the rule matched <em>and</em> the engine decided to inject a fault for that call (probability roll succeeded, or EVERY_N fired on that ordinal).</li>
+                        <li><strong>Trigger %</strong> — <code>triggers ÷ matches</code> for that rule since the last metrics reset.</li>
+                        <li>In <code>EVERY_N</code> mode, only <code>every-n</code> drives firing; the <strong>probability</strong> slider is stored but <strong>not used</strong> for the decision (switch to <code>PROBABILITY</code> to use it).</li>
+                        <li>Changes in <code>application.yml</code> require an <strong>application restart</strong> to load. Use this UI (or the REST API) to toggle rules while the JVM is running.</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold mb-1">Match dimensions</h3>
+                    <ul class="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-300">
+                        <li><code>host-pattern</code> &mdash; Java regex on <code>URI.getHost()</code>. Empty / blank means match any.</li>
+                        <li><code>url-pattern</code> &mdash; Java regex on the full URL string.</li>
+                        <li><code>methods</code> &mdash; optional set; empty means any method.</li>
+                        <li>Rules evaluate in declared order. <strong>First match wins.</strong></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold mb-1">Common regex snippets</h3>
+                    <pre class="code-block">api\.billing\..*           # any host under api.billing.*
+.*\/orders\/.*             # any URL containing /orders/
+^https?:\/\/.*\.flaky\..*  # only flaky.* hosts</pre>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold mb-1">Trigger modes</h3>
+                    <ul class="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-300">
+                        <li><code>PROBABILITY</code> &mdash; roll a random number per matching request against <code>probability</code>.</li>
+                        <li><code>EVERY_N</code> &mdash; deterministic; fires on every Nth matching request.</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold mb-1">Fault types</h3>
+                    <ul class="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-300">
+                        <li><code>DELAY</code> &mdash; sleep for <code>delayMs</code>, then proceed.</li>
+                        <li><code>ERROR</code> &mdash; short-circuit with synthetic <code>errorStatus</code>.</li>
+                        <li><code>BOTH</code> &mdash; delay, then short-circuit with the error.</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold mb-1">curl recipes</h3>
+                    <pre class="code-block">curl -s ${HOST}/fault-injector/api/config | jq .
+
+# Toggle a rule
+curl -X POST ${HOST}/fault-injector/api/rules/slow-billing/enabled \
+     -H 'content-type: application/json' \
+     -d '{"enabled": true}'
+
+# Reset all counters
+curl -X POST ${HOST}/fault-injector/api/metrics/reset \
+     -H 'content-type: application/json' -d '{}'</pre>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<!-- ============ Rule edit / add modal ============ -->
+<div id="rule-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" data-modal-close></div>
+    <div class="absolute inset-0 overflow-y-auto p-4 grid place-items-center pointer-events-none">
+        <div class="card w-full max-w-2xl pointer-events-auto">
+            <div class="card-header flex items-center gap-2">
+                <h2 class="card-title flex-1 min-w-0" id="rule-modal-title">Add rule</h2>
+                <button type="button" id="rule-modal-delete" class="hidden p-2 rounded-md text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/30 shrink-0" aria-label="Delete rule" title="Delete rule">
+                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M3 6h18"/>
+                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
+                        <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                        <path d="M10 11v6M14 11v6"/>
+                    </svg>
+                </button>
+                <button type="button" class="p-2 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0" data-modal-close aria-label="Close">
+                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <div class="card-body">
+                <form id="rule-form" class="grid sm:grid-cols-2 gap-3 text-sm" novalidate>
+                    <label class="form-field sm:col-span-2">
+                        <span>Name</span>
+                        <input name="name" required pattern=".+" placeholder="my-flaky-rule" />
+                    </label>
+                    <div class="form-field sm:col-span-2 flex flex-row items-center gap-3 select-none">
+                        <span class="text-sm font-medium">Rule enabled</span>
+                        <label class="fi-toggle" title="Turn this rule on or off">
+                            <input name="ruleEnabled" type="checkbox" aria-label="Rule enabled" />
+                            <span class="fi-toggle-track"><span class="fi-toggle-thumb"></span></span>
+                        </label>
+                        <span class="text-slate-400 font-normal text-xs">(same as <code class="text-xs">enabled:</code> in YAML)</span>
+                    </div>
+                    <label class="form-field">
+                        <span>Fault type</span>
+                        <select name="fault">
+                            <option>DELAY</option><option>ERROR</option><option>BOTH</option>
+                        </select>
+                    </label>
+                    <label class="form-field">
+                        <span>Trigger mode</span>
+                        <select name="mode">
+                            <option value="">(default)</option>
+                            <option>PROBABILITY</option>
+                            <option>EVERY_N</option>
+                        </select>
+                    </label>
+                    <label class="form-field sm:col-span-2">
+                        <span>Host pattern <span class="text-slate-400 font-normal">(regex on URI.getHost())</span></span>
+                        <input name="hostPattern" placeholder="api\.example\.com" />
+                    </label>
+                    <label class="form-field sm:col-span-2">
+                        <span>URL pattern <span class="text-slate-400 font-normal">(regex on full URL)</span></span>
+                        <input name="urlPattern" placeholder=".*/orders/.*" />
+                    </label>
+                    <label class="form-field sm:col-span-2">
+                        <span>Methods <span class="text-slate-400 font-normal">(comma-separated, empty = any)</span></span>
+                        <input name="methods" placeholder="GET, POST" />
+                    </label>
+                    <label class="form-field">
+                        <span>Probability <span class="text-slate-400 font-normal" id="prob-display">0.00</span></span>
+                        <input name="probability" type="range" min="0" max="1" step="0.01" />
+                    </label>
+                    <label class="form-field">
+                        <span>Every N</span>
+                        <input name="everyN" type="number" min="0" placeholder="0 = off" />
+                    </label>
+                    <label class="form-field">
+                        <span>Delay (ms)</span>
+                        <input name="delayMs" type="number" min="0" />
+                    </label>
+                    <label class="form-field">
+                        <span>Error status</span>
+                        <input name="errorStatus" type="number" min="100" max="599" placeholder="503" />
+                    </label>
+                    <label class="form-field sm:col-span-2">
+                        <span>Error message</span>
+                        <input name="errorMessage" placeholder="Injected fault" />
+                    </label>
+
+                    <div id="rule-form-error" class="sm:col-span-2 hidden text-rose-500 bg-rose-500/10 border border-rose-500/30 rounded-md px-3 py-2"></div>
+
+                    <div class="sm:col-span-2 flex items-center gap-2 pt-2">
+                        <button type="submit" class="px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm">Save</button>
+                        <button type="button" data-modal-close class="px-4 py-2 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ Defaults edit modal ============ -->
+<div id="defaults-modal" class="fixed inset-0 z-50 hidden">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" data-defaults-modal-close></div>
+    <div class="absolute inset-0 overflow-y-auto p-4 grid place-items-center pointer-events-none">
+        <div class="card w-full max-w-xl pointer-events-auto">
+            <div class="card-header flex items-center gap-2">
+                <h2 class="card-title flex-1">Edit defaults</h2>
+                <button type="button" class="p-2 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0" data-defaults-modal-close aria-label="Close">
+                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <div class="card-body">
+                <form id="defaults-form" class="grid sm:grid-cols-2 gap-3 text-sm" novalidate>
+                    <label class="form-field">
+                        <span>Trigger mode</span>
+                        <select name="mode">
+                            <option>PROBABILITY</option>
+                            <option>EVERY_N</option>
+                        </select>
+                    </label>
+                    <label class="form-field">
+                        <span>Delay (ms)</span>
+                        <input name="delayMs" type="number" min="0" required />
+                    </label>
+                    <label class="form-field">
+                        <span>Probability <span class="text-slate-400 font-normal" id="defaults-prob-display">0.00</span></span>
+                        <input name="probability" type="range" min="0" max="1" step="0.01" />
+                    </label>
+                    <label class="form-field">
+                        <span>Every N</span>
+                        <input name="everyN" type="number" min="0" placeholder="0 = off" required />
+                    </label>
+                    <label class="form-field">
+                        <span>Error status</span>
+                        <input name="errorStatus" type="number" min="100" max="599" required />
+                    </label>
+                    <label class="form-field sm:col-span-2">
+                        <span>Error message</span>
+                        <input name="errorMessage" required />
+                    </label>
+                    <div id="defaults-form-error" class="sm:col-span-2 hidden text-rose-500 bg-rose-500/10 border border-rose-500/30 rounded-md px-3 py-2"></div>
+                    <div class="sm:col-span-2 flex items-center gap-2 pt-2">
+                        <button type="submit" class="px-4 py-2 rounded-md text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white shadow-sm">Save defaults</button>
+                        <button type="button" data-defaults-modal-close class="px-4 py-2 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="toast-host" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
