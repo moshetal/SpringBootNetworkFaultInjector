@@ -3,11 +3,13 @@ package com.mta.faultinjection.autoconfig;
 import com.mta.faultinjection.config.FaultInjectionProperties;
 import com.mta.faultinjection.config.FaultInjectionProperties.Ui;
 import com.mta.faultinjection.core.FaultDecisionStrategy;
+import com.mta.faultinjection.telemetry.FaultInjectionResilienceTelemetry;
 import com.mta.faultinjection.telemetry.FaultInjectionTelemetry;
 import com.mta.faultinjection.web.FaultInjectorLocalhostOnlyFilter;
 import com.mta.faultinjection.web.FaultInjectorUiController;
 import com.mta.faultinjection.web.FaultInjectorUiResourceConfig;
 import com.mta.faultinjection.web.FaultInjectorUiService;
+import java.time.Clock;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -44,6 +46,18 @@ public class FaultInjectionUiAutoConfiguration {
         Ui ui = properties.getUi();
         long bucketWidthMs = Math.max(1, ui.getTimeseriesBucketSeconds()) * 1000L;
         return new FaultInjectionTelemetry(ui.getEventBufferSize(), bucketWidthMs, ui.getTimeseriesBuckets());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public FaultInjectionResilienceTelemetry faultInjectionResilienceTelemetry(FaultInjectionProperties properties) {
+        FaultInjectionProperties.Ui.Resilience r = properties.getUi().getResilience();
+        return new FaultInjectionResilienceTelemetry(
+                r.getRetryWindowMs(),
+                r.getCbConsecutiveErrorThreshold(),
+                r.getCbObservationWindowMs(),
+                r.getObservationBufferSize(),
+                Clock.systemUTC());
     }
 
     @Bean
