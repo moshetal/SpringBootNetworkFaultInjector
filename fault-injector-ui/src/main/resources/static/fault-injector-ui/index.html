@@ -152,25 +152,26 @@
                 <h2 class="card-title">Resilience signals</h2>
                 <p class="card-sub">How your service responded — retries, circuit breaker, observed wait. Cumulative since last reset.</p>
             </div>
+            <div id="resilience-summary" class="resilience-summary"></div>
             <div class="card-body grid md:grid-cols-3 gap-4 p-4">
                 <div>
                     <h3 class="font-semibold text-sm mb-2">Recent retry observations</h3>
                     <table class="data-table compact">
-                        <thead><tr><th>Rule</th><th>Target</th><th class="text-right">Retries seen</th></tr></thead>
+                        <thead><tr><th>Rule</th><th>Target</th><th class="text-right">Verdict</th></tr></thead>
                         <tbody id="retry-tbody"></tbody>
                     </table>
                 </div>
                 <div>
                     <h3 class="font-semibold text-sm mb-2">Circuit-breaker windows</h3>
                     <table class="data-table compact">
-                        <thead><tr><th>Host</th><th>Method</th><th class="text-right">Calls post-threshold</th></tr></thead>
+                        <thead><tr><th>Host</th><th>Method</th><th class="text-right">Verdict</th></tr></thead>
                         <tbody id="cb-tbody"></tbody>
                     </table>
                 </div>
                 <div>
                     <h3 class="font-semibold text-sm mb-2">Observed delay vs injected</h3>
                     <table class="data-table compact">
-                        <thead><tr><th>Rule</th><th class="text-right">Injected</th><th class="text-right">Observed</th><th>Done</th></tr></thead>
+                        <thead><tr><th>Rule</th><th class="text-right">Injected</th><th class="text-right">Observed</th><th>Verdict</th></tr></thead>
                         <tbody id="delay-tbody"></tbody>
                     </table>
                 </div>
