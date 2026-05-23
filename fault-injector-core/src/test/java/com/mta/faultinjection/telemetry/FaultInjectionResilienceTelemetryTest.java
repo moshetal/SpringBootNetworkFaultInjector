@@ -92,6 +92,48 @@ class FaultInjectionResilienceTelemetryTest {
     }
 
     @Test
+    void cbOpensAfterNConsecutiveErrorsAndCountsCalls() {
+        MutableClock c = new MutableClock(T0);
+        FaultInjectionResilienceTelemetry t =
+                new FaultInjectionResilienceTelemetry(30_000L, 3, 30_000L, 100, c);
+
+        URI uri = URI.create("https://h/p");
+        FaultDecision err = FaultDecision.error(503, "x").withRuleName("r");
+        for (int i = 0; i < 3; i++) {
+            t.observeOutbound(HttpMethod.GET, uri, err);
+            c.advanceMillis(50L);
+        }
+        // CB is now open; subsequent calls count toward post-window
+        t.observeOutbound(HttpMethod.GET, uri, FaultDecision.pass());
+        t.observeOutbound(HttpMethod.GET, uri, FaultDecision.pass());
+
+        c.advanceMillis(31_000L);
+        List<CircuitBreakerObservation> obs = t.circuitBreakerObservations();
+        assertThat(obs).hasSize(1);
+        assertThat(obs.get(0).host()).isEqualTo("h");
+        assertThat(obs.get(0).method()).isEqualTo("GET");
+        assertThat(obs.get(0).threshold()).isEqualTo(3);
+        assertThat(obs.get(0).postWindowCallCount()).isEqualTo(2);
+    }
+
+    @Test
+    void passResetsConsecutiveErrorsSoCbDoesNotOpen() {
+        MutableClock c = new MutableClock(T0);
+        FaultInjectionResilienceTelemetry t =
+                new FaultInjectionResilienceTelemetry(30_000L, 3, 30_000L, 100, c);
+        URI uri = URI.create("https://h/p");
+        FaultDecision err = FaultDecision.error(503, "x").withRuleName("r");
+
+        t.observeOutbound(HttpMethod.GET, uri, err);
+        t.observeOutbound(HttpMethod.GET, uri, err);
+        t.observeOutbound(HttpMethod.GET, uri, FaultDecision.pass()); // resets streak
+        t.observeOutbound(HttpMethod.GET, uri, err);
+
+        c.advanceMillis(31_000L);
+        assertThat(t.circuitBreakerObservations()).isEmpty();
+    }
+
+    @Test
     void rejectsNonPositiveConfig() {
         assertThatThrownBy(() ->
                 new FaultInjectionResilienceTelemetry(0L, 5, 30_000L, 100, Clock.systemUTC()))

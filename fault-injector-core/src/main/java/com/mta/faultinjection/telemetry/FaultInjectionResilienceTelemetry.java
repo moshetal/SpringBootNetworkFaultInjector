@@ -79,6 +79,29 @@ public class FaultInjectionResilienceTelemetry {
                 open.depth.incrementAndGet();
             }
         }
+
+        HostMethodKey hmKey = key.hostMethodKey();
+        boolean openedThisCall = false;
+        if (errorFired) {
+            AtomicInteger streak = consecutiveErrors.computeIfAbsent(hmKey, k -> new AtomicInteger());
+            int after = streak.incrementAndGet();
+            if (after == cbThreshold) {
+                OpenCb prior = openCbs.putIfAbsent(hmKey, new OpenCb(hmKey, now));
+                openedThisCall = (prior == null);
+            }
+        } else {
+            AtomicInteger streak = consecutiveErrors.get(hmKey);
+            if (streak != null) {
+                streak.set(0);
+            }
+        }
+
+        if (!openedThisCall) {
+            OpenCb openCb = openCbs.get(hmKey);
+            if (openCb != null && now - openCb.startEpochMs <= cbWindowMs) {
+                openCb.postWindowCallCount.incrementAndGet();
+            }
+        }
     }
 
     public void noteObservedDelay(
@@ -124,6 +147,17 @@ public class FaultInjectionResilienceTelemetry {
         openRetries.forEach((k, v) -> {
             if (now - v.startEpochMs > retryWindowMs && openRetries.remove(k, v)) {
                 appendBounded(finalizedRetries, snapshotOpenRetry(v));
+            }
+        });
+        openCbs.forEach((k, v) -> {
+            if (now - v.startEpochMs > cbWindowMs && openCbs.remove(k, v)) {
+                appendBounded(finalizedCbs, new CircuitBreakerObservation(
+                        k.host(), k.method(), cbThreshold,
+                        v.startEpochMs, cbWindowMs, v.postWindowCallCount.get()));
+                AtomicInteger streak = consecutiveErrors.get(k);
+                if (streak != null) {
+                    streak.set(0);
+                }
             }
         });
     }
