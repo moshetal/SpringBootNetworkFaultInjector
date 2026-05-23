@@ -84,8 +84,9 @@ public class FaultInjectionAutoConfiguration {
     static class WebClientAutoConfig {
         @Bean
         @ConditionalOnMissingBean
-        public FaultInjectionFilter faultInjectionFilter(FaultDecisionStrategy strategy) {
-            return new FaultInjectionFilter(strategy);
+        public FaultInjectionFilter faultInjectionFilter(
+                FaultDecisionStrategy strategy, ObjectProvider<FaultInjectionResilienceTelemetry> resilience) {
+            return new FaultInjectionFilter(strategy, resilience.getIfAvailable());
         }
 
         @Bean
