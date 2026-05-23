@@ -18,15 +18,15 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * REST endpoints powering the bundled fault-injection UI. Delegates to
- * {@link FaultInjectorUiService}.
+ * {@link FaultInjectorControlFacade}.
  */
 @RestController
 @RequestMapping("${fault.injection.ui.path:/fault-injector}/api")
 public class FaultInjectorUiController {
 
-    private final FaultInjectorUiService uiService;
+    private final FaultInjectorControlFacade uiService;
 
-    public FaultInjectorUiController(FaultInjectorUiService uiService) {
+    public FaultInjectorUiController(FaultInjectorControlFacade uiService) {
         this.uiService = uiService;
     }
 

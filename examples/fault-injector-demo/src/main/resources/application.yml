@@ -33,7 +33,12 @@ fault:
       enabled: true
       path: /fault-injector
 
-    # Inherited by every rule that omits the field. The "no-host" rule below
+    agent:
+      enabled: ${FAULT_INJECTION_AGENT_ENABLED:false}
+      server-url: ${FAULT_INJECTION_AGENT_SERVER_URL:ws://localhost:8080/ws}
+      instance-id: ${FAULT_INJECTION_AGENT_INSTANCE_ID:}
+
+    # Inherited by every rule that omits the field.
     # demonstrates this: it sets only delay-ms and inherits everything else.
     defaults:
       delay-ms: 100

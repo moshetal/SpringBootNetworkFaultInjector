@@ -73,10 +73,10 @@ Properties prefix: `fault.injection`
 
 **Global switch:** `fault.injection.enabled` defaults to **`false`**. Faults apply only after you set it to `true` in configuration (or toggle it at runtime via the Actuator write API / UI).
 
-Copy-ready samples (not on the classpath) live under **`examples/`**:
+Copy-ready samples (not on the classpath) live under **`examples/config/`**:
 
-- `examples/fault-injection-example.yml`
-- `examples/fault-injection-example.properties`
+- `examples/config/fault-injection-example.yml`
+- `examples/config/fault-injection-example.properties`
 
 ```yaml
 fault:
@@ -213,18 +213,25 @@ project's `application.yml` to make the edits survive a restart. The same data
 is also reachable programmatically at
 `GET /fault-injector/api/config/export?format=yaml`.
 
-## Sample application
+## Examples and demos
 
-`samples/fault-injector-demo/` is a small Spring Boot app that depends on the starter. It is **not** listed in the root reactor `pom.xml`, so it does not ship as part of the library build for consumers.
+See **[examples/README.md](examples/README.md)** for the full guide.
 
-To run it locally after building the library:
+| Demo | Command | Result |
+|---|---|---|
+| Local | `make demo-local` | App + local UI at http://localhost:8080/fault-injector/ |
+| Cloud | `make demo-cloud` | Console at http://localhost:8080/console/ + 2 demo pods |
+
+[`examples/fault-injector-demo/`](examples/fault-injector-demo/) is a small Spring Boot app that depends on the starter. It is **not** listed in the root reactor `pom.xml`, so it does not ship as part of the library build for consumers.
 
 ```bash
-mvn clean install          # from repository root — installs the starter into ~/.m2
-mvn -f samples/fault-injector-demo/pom.xml spring-boot:run
+make demo-local
+# or manually:
+mvn clean install
+mvn -f examples/fault-injector-demo/pom.xml spring-boot:run
 ```
 
-In IntelliJ, add `samples/fault-injector-demo/pom.xml` as a **Maven** project (or open that directory) so `DemoApplication` gets a proper classpath; the root project alone does not import that module.
+In IntelliJ, add `examples/fault-injector-demo/pom.xml` as a **Maven** project so `DemoApplication` gets a proper classpath.
 
 ## Build
 
@@ -236,6 +243,34 @@ From the repository root:
 ```
 
 `verify` runs unit tests across the library modules.
+
+## Cluster control plane (optional)
+
+The **platform** tree (`platform/`) hosts a separate Spring Boot server + console UI for managing many microservice instances. It is **not** part of the published starter and is **not** pulled in transitively by `spring-boot-starter-fault-injector`.
+
+Microservices opt in with the optional agent starter:
+
+```xml
+<dependency>
+  <groupId>com.mta.faultinjector</groupId>
+  <artifactId>spring-boot-starter-fault-injector-agent</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+</dependency>
+```
+
+```yaml
+fault:
+  injection:
+    agent:
+      enabled: true
+      server-url: ws://fault-injector-server:8080/ws
+      service-name: ${spring.application.name}
+      instance-id: ${HOSTNAME:}
+```
+
+When the agent is enabled, outbound calls to the control server URL are excluded from fault injection automatically (along with the local UI and actuator paths).
+
+See [examples/README.md](examples/README.md) for the cloud demo (`make demo-cloud`). See [platform/README.md](platform/README.md) for server-only deployment. Local UI at `/fault-injector` continues to work on each pod.
 
 ## License
 

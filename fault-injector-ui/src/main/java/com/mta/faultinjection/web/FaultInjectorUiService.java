@@ -56,7 +56,7 @@ import org.yaml.snakeyaml.Yaml;
  * property binding (notably {@code Set<HttpMethod>} which doesn't round-trip
  * through Jackson without custom configuration).
  */
-public class FaultInjectorUiService {
+public class FaultInjectorUiService implements FaultInjectorControlFacade {
 
     private final FaultInjectionProperties properties;
     private final FaultDecisionStrategy strategy;

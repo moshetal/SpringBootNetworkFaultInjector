@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: faultinjector
+      POSTGRES_USER: faultinjector
+      POSTGRES_PASSWORD: faultinjector
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U faultinjector -d faultinjector"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  fault-injector-server:
+    build:
+      context: ../..
+      dockerfile: platform/fault-injector-server/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/faultinjector
+      SPRING_DATASOURCE_USERNAME: faultinjector
+      SPRING_DATASOURCE_PASSWORD: faultinjector
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  demo-a:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.demo
+    environment:
+      SPRING_APPLICATION_NAME: fault-injector-demo
+      FAULT_INJECTION_AGENT_ENABLED: "true"
+      FAULT_INJECTION_AGENT_SERVER_URL: ws://fault-injector-server:8080/ws
+      FAULT_INJECTION_AGENT_INSTANCE_ID: demo-a
+      FAULT_INJECTION_ENABLED: "true"
+    ports:
+      - "8081:8080"
+    depends_on:
+      - fault-injector-server
+
+  demo-b:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.demo
+    environment:
+      SPRING_APPLICATION_NAME: fault-injector-demo
+      FAULT_INJECTION_AGENT_ENABLED: "true"
+      FAULT_INJECTION_AGENT_SERVER_URL: ws://fault-injector-server:8080/ws
+      FAULT_INJECTION_AGENT_INSTANCE_ID: demo-b
+      FAULT_INJECTION_ENABLED: "true"
+    ports:
+      - "8082:8080"
+    depends_on:
+      - fault-injector-server

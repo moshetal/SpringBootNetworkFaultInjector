@@ -20,9 +20,12 @@
 
     <modules>
         <module>fault-injector-core</module>
+        <module>fault-injector-protocol</module>
         <module>fault-injector-actuator</module>
         <module>fault-injector-ui</module>
+        <module>fault-injector-agent</module>
         <module>spring-boot-starter-fault-injector</module>
+        <module>spring-boot-starter-fault-injector-agent</module>
     </modules>
 
     <properties>
@@ -44,6 +47,21 @@
             <dependency>
                 <groupId>com.mta.faultinjector</groupId>
                 <artifactId>fault-injector-ui</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mta.faultinjector</groupId>
+                <artifactId>fault-injector-protocol</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mta.faultinjector</groupId>
+                <artifactId>fault-injector-agent</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mta.faultinjector</groupId>
+                <artifactId>spring-boot-starter-fault-injector</artifactId>
                 <version>${project.version}</version>
             </dependency>
         </dependencies>
