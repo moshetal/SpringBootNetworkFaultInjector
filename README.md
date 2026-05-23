@@ -1,33 +1,64 @@
 # Spring Boot Fault Injector Starter
 
-A lightweight Spring Boot starter that wires interceptors/filters into popular
-HTTP clients to simulate network faults (latency, errors, or both) for chaos
-and resiliency testing.
+Inject latency and errors into outbound HTTP calls (`RestTemplate`, `RestClient`, `WebClient`) for chaos and resiliency testing. Configure rules in YAML, tune them at runtime via Actuator or a bundled UI, and optionally connect many services to a central control console.
 
-## Features
+## Features at a glance
 
-- Auto-configures fault injection for every supported HTTP client on the classpath:
-  - `RestTemplate` — via a `RestTemplateCustomizer` that adds a `ClientHttpRequestInterceptor`
-  - `RestClient` (Spring Framework 6.1+) — via a `RestClientCustomizer`
-  - `WebClient` — via a `WebClientCustomizer` that registers an `ExchangeFilterFunction` (never blocks a reactive thread)
-- Configuration-driven rules with global defaults + ordered per-rule overrides
-- Two trigger modes selectable per rule:
-  - `PROBABILITY` — random roll per matching request
-  - `EVERY_N` — deterministic fire on every Nth matching request
-- Three fault types: `DELAY`, `ERROR`, or `BOTH`
-- Pluggable `FaultDecisionStrategy` bean for custom logic
-- Optional Spring Boot Actuator endpoint with live counters and runtime toggles
+| Area | Capabilities |
+|------|----------------|
+| **Injection** | `DELAY`, `ERROR`, or `BOTH`; `PROBABILITY` or `EVERY_N` triggers; host/URL regex + HTTP method filters; per-rule `enabled`; global kill switch |
+| **Clients** | Auto-wired for `RestTemplate`, `RestClient`, `WebClient` (reactive path never blocks) |
+| **Extensibility** | Custom `FaultDecisionStrategy` bean replaces config-driven logic |
+| **Safety** | Outbound URL exclusions for actuator, local UI, and (when enabled) agent server URL |
+| **Actuator** | Read state + counters; runtime enable/disable, per-rule toggle, probability changes |
+| **Local UI** | `/fault-injector` — edit defaults/rules, toggle switches, live charts, event log, export JSON/CSV, **download or merge YAML config** |
+| **Resilience** | Reports tab: retry depth after injected errors, circuit-breaker observations, observed vs injected delay |
+| **Cluster** *(optional)* | STOMP agent in apps + separate control server + PostgreSQL + console UI at `/console/` |
 
-## Compatibility
+**Requirements:** Java 17+, Spring Boot 3.2.x.
 
-- Java 17+
-- Spring Boot 3.2.x
+## Quick try
+
+From the repo root:
+
+| Demo | Command | Open |
+|------|---------|------|
+| Local (one app) | `make demo-local` | http://localhost:8080/fault-injector/ |
+| Cloud (server + 2 pods) | `make demo-cloud` | http://localhost:8080/console/ |
+
+Without `make` (Windows, etc.):
+
+```bash
+mvn install -DskipTests
+mvn -f examples/fault-injector-demo/pom.xml spring-boot:run
+docker compose -f examples/docker/docker-compose.yml up --build
+```
+
+Local and cloud demos both use host port **8080** — run one at a time. Details: [examples/README.md](examples/README.md).
+
+## Repository layout
+
+```
+Library (Maven reactor — what apps depend on)
+  fault-injector-core          injection engine, telemetry, resilience signals
+  fault-injector-actuator        /actuator/faultinjector
+  fault-injector-ui              local UI + REST API
+  fault-injector-protocol        agent ↔ server wire format
+  fault-injector-agent           STOMP client
+  spring-boot-starter-fault-injector          default starter (core + actuator + ui)
+  spring-boot-starter-fault-injector-agent    above + agent
+
+Not published as library artifacts
+  examples/          config snippets, demo app, docker-compose
+  platform/          control server (fault-injector-server)
+  Makefile           demo-local, demo-cloud, verify
+```
+
+Consumers add **one Maven dependency**; `examples/` and `platform/` are for trying and operating the control plane only.
 
 ## Installation
 
-Published coordinates (aggregator starter — pulls core, Actuator endpoint, and UI):
-
-Maven:
+**Default** — injection + actuator + local UI:
 
 ```xml
 <dependency>
@@ -37,218 +68,7 @@ Maven:
 </dependency>
 ```
 
-Gradle:
-
-```groovy
-implementation 'com.mta.faultinjector:spring-boot-starter-fault-injector:0.0.1-SNAPSHOT'
-```
-
-This repository is a **multi-module** build (`fault-injector-core`, `fault-injector-actuator`, `fault-injector-ui`, `spring-boot-starter-fault-injector`). Applications should depend only on **`spring-boot-starter-fault-injector`** unless you need a slimmer classpath (then compose the lower-level artifacts yourself).
-
-## Usage
-
-Build any of the supported clients via its Spring-managed builder — the
-starter's customizers are applied automatically:
-
-```java
-@Bean
-RestTemplate restTemplate(RestTemplateBuilder builder) {
-    return builder.build();
-}
-
-@Bean
-RestClient restClient(RestClient.Builder builder) {
-    return builder.baseUrl("https://api.example.com").build();
-}
-
-@Bean
-WebClient webClient(WebClient.Builder builder) {
-    return builder.build();
-}
-```
-
-## Configuration
-
-Properties prefix: `fault.injection`
-
-**Global switch:** `fault.injection.enabled` defaults to **`false`**. Faults apply only after you set it to `true` in configuration (or toggle it at runtime via the Actuator write API / UI).
-
-Copy-ready samples (not on the classpath) live under **`examples/config/`**:
-
-- `examples/config/fault-injection-example.yml`
-- `examples/config/fault-injection-example.properties`
-
-```yaml
-fault:
-  injection:
-    enabled: true   # override default false when you want injection active
-
-    # Fallbacks for any field a rule omits.
-    defaults:
-      delay-ms: 0
-      error-status: 503
-      error-message: "Injected fault"
-      mode: PROBABILITY        # PROBABILITY | EVERY_N
-      probability: 0.0
-      every-n: 0
-
-    # First matching rule wins. Empty fields fall back to `defaults`.
-    rules:
-      - name: slow-billing-api
-        host-pattern: "api\\.billing\\.example\\.com"
-        methods: [GET, POST]
-        fault: DELAY            # DELAY | ERROR | BOTH
-        mode: PROBABILITY
-        probability: 0.10
-        delay-ms: 750
-
-      - name: flaky-search
-        url-pattern: ".*/search/.*"
-        fault: ERROR
-        mode: EVERY_N
-        every-n: 5
-        error-status: 503
-```
-
-### Rule matching
-
-- `host-pattern` / `url-pattern` — Java regex matched against `URI.getHost()`
-  and the full URL respectively. Empty means match any.
-- `methods` — optional set of HTTP methods. Empty means any.
-- Rules are evaluated in declared order; the first match wins.
-
-### Custom decision logic
-
-Provide your own `FaultDecisionStrategy` bean to replace the built-in,
-config-driven strategy entirely:
-
-```java
-@Bean
-FaultDecisionStrategy faultDecisionStrategy() {
-    return (method, uri) -> FaultDecision.delay(Duration.ofMillis(50));
-}
-```
-
-### Outbound URL exclusions (management / UI safety)
-
-By default, matching rules **do not** apply to certain outbound URLs (so tuning the actuator or UI does not trip your own fault rules). Tune with:
-
-| Property | Default | Meaning |
-|----------|---------|--------|
-| `fault.injection.outbound-exclude-enabled` | `true` | Master switch for URL-based skips. |
-| `fault.injection.outbound-exclude-include-builtins` | `true` | When enabled, adds built-in patterns for the faultinjector actuator path and the UI base path. |
-| `fault.injection.outbound-exclude-url-patterns` | _(empty)_ | Extra full-URL regex patterns (`Matcher#find()`); invalid patterns are ignored at runtime. |
-
-## Actuator endpoint
-
-With `spring-boot-starter-actuator` on the classpath, the endpoint is exposed
-at `/actuator/faultinjector` (id: `faultinjector`).
-
-`GET /actuator/faultinjector` returns the current enabled flag, defaults, and
-per-rule configuration with `matchCount` and `triggerCount` counters.
-
-`POST /actuator/faultinjector` accepts a JSON body describing a targeted action:
-
-| Action             | Body                                                      | Effect                                       |
-|--------------------|-----------------------------------------------------------|----------------------------------------------|
-| `enable`           | `{"action":"enable"}`                                     | Flip the global enabled flag on.             |
-| `disable`          | `{"action":"disable"}`                                    | Flip the global enabled flag off.            |
-| `setRuleEnabled`   | `{"action":"setRuleEnabled","name":"X","enabled":true}`   | Toggle a single named rule.                  |
-| `setProbability`   | `{"action":"setProbability","name":"X","probability":0.2}`| Adjust a rule's probability (in `[0,1]`).    |
-
-Remember to expose the endpoint with
-`management.endpoints.web.exposure.include=faultinjector` (or `*`).
-
-**Access control:** HTTP `POST` to this endpoint can change live settings. Treat it like any sensitive actuator: use Spring Security (or equivalent), a separate management port / network (`management.server.*`), and least-privilege exposure. Spring Boot’s actuator appendix documents endpoint-specific `management.endpoint.<id>.*` flags for your Boot version (names and supported access modes have changed across releases).
-
-## Bundled UI
-
-When Spring MVC is on the classpath the starter mounts a self-contained admin
-UI at `/fault-injector` (mirroring the way Swagger UI hangs off the
-application's port). Open it in a browser to:
-
-- view and edit defaults + every rule field at runtime,
-- add or delete rules without restarting,
-- toggle the global kill switch and per-rule enabled flag,
-- watch a live time-series chart of match vs trigger counts,
-- see the most recent injection decisions in a streaming table,
-- reset metrics or export them as JSON / CSV.
-
-The UI is a single static page (Tailwind + Chart.js via CDN, zero build step)
-that talks to a small REST API rooted at `${fault.injection.ui.path}/api`.
-
-### Configuration
-
-```yaml
-fault:
-  injection:
-    ui:
-      enabled: true                  # default true; set false to opt out
-      path: /fault-injector          # URL prefix for the UI and its API
-      event-buffer-size: 1000        # ring buffer size for "Recent decisions"
-      timeseries-bucket-seconds: 10  # width of one chart bucket
-      timeseries-buckets: 60         # number of buckets retained (10 s × 60 = 10 min)
-      snapshot-poll-ms: 2000         # UI hint for how often to poll
-```
-
-### Localhost-only access (optional)
-
-For a coarse **local-only** gate (not a substitute for auth), set
-`fault.injection.ui.require-localhost=true`. Only loopback clients can reach the UI
-and its `${fault.injection.ui.path}/api` endpoints.
-
-The UI auto-configures only when Spring MVC is on the classpath (i.e. when an
-HTTP server is running). Mutations are written into the live
-`FaultInjectionProperties` bean and persist for the JVM lifetime — they do
-**not** survive a restart, by design (use `application.yml` for durable
-configuration).
-
-### Promoting runtime edits to durable config
-
-Click **Download config** in the Configuration tab to download the current
-`fault.injection.*` tree as `fault-injection.yml`. The file mirrors the layout
-of `application.yml` exactly (kebab-case keys, null overrides omitted, methods
-as a list of strings), so you can paste its contents under `fault:` in your
-project's `application.yml` to make the edits survive a restart. The same data
-is also reachable programmatically at
-`GET /fault-injector/api/config/export?format=yaml`.
-
-## Examples and demos
-
-See **[examples/README.md](examples/README.md)** for the full guide.
-
-| Demo | Command | Result |
-|---|---|---|
-| Local | `make demo-local` | App + local UI at http://localhost:8080/fault-injector/ |
-| Cloud | `make demo-cloud` | Console at http://localhost:8080/console/ + 2 demo pods |
-
-[`examples/fault-injector-demo/`](examples/fault-injector-demo/) is a small Spring Boot app that depends on the starter. It is **not** listed in the root reactor `pom.xml`, so it does not ship as part of the library build for consumers.
-
-```bash
-make demo-local
-# or manually:
-mvn clean install
-mvn -f examples/fault-injector-demo/pom.xml spring-boot:run
-```
-
-In IntelliJ, add `examples/fault-injector-demo/pom.xml` as a **Maven** project so `DemoApplication` gets a proper classpath.
-
-## Build
-
-From the repository root:
-
-```bash
-./mvnw clean verify
-# or: mvn clean verify
-```
-
-`verify` runs unit tests across the library modules.
-
-## Cluster control plane (optional)
-
-The **platform** tree (`platform/`) hosts a separate Spring Boot server + console UI for managing many microservice instances. It is **not** part of the published starter and is **not** pulled in transitively by `spring-boot-starter-fault-injector`.
-
-Microservices opt in with the optional agent starter:
+**Cluster** — add the agent starter (includes the default starter transitively):
 
 ```xml
 <dependency>
@@ -256,6 +76,102 @@ Microservices opt in with the optional agent starter:
   <artifactId>spring-boot-starter-fault-injector-agent</artifactId>
   <version>0.0.1-SNAPSHOT</version>
 </dependency>
+```
+
+Build clients with Spring-managed builders; customizers attach automatically:
+
+```java
+@Bean RestTemplate restTemplate(RestTemplateBuilder b) { return b.build(); }
+@Bean RestClient restClient(RestClient.Builder b) { return b.baseUrl("https://api.example.com").build(); }
+@Bean WebClient webClient(WebClient.Builder b) { return b.build(); }
+```
+
+## Configuration
+
+Prefix: `fault.injection`. **`enabled` defaults to `false`** — turn it on in config or at runtime.
+
+Copy-ready samples: [examples/config/](examples/config/). The [demo app YAML](examples/fault-injector-demo/src/main/resources/application.yml) exercises every rule type.
+
+```yaml
+fault:
+  injection:
+    enabled: true
+    defaults:
+      delay-ms: 0
+      error-status: 503
+      error-message: "Injected fault"
+      mode: PROBABILITY      # PROBABILITY | EVERY_N
+      probability: 0.0
+      every-n: 0
+    rules:
+      - name: slow-api
+        url-pattern: ".*/billing/.*"
+        methods: [GET, POST]
+        enabled: true          # per-rule toggle (actuator / UI)
+        fault: DELAY           # DELAY | ERROR | BOTH
+        mode: PROBABILITY
+        probability: 0.10
+        delay-ms: 750
+```
+
+**Matching:** rules are ordered; **first match wins**. `host-pattern` / `url-pattern` are Java regexes; empty matches any. `methods` empty matches any method.
+
+**Custom logic:** provide a `FaultDecisionStrategy` `@Bean` to bypass YAML rules entirely.
+
+**Outbound exclusions** (defaults on):
+
+| Property | Default | Purpose |
+|----------|---------|---------|
+| `outbound-exclude-enabled` | `true` | Master switch |
+| `outbound-exclude-include-builtins` | `true` | Skip actuator, UI path, agent server URL |
+| `outbound-exclude-url-patterns` | — | Extra URL regexes |
+
+## Runtime control
+
+### Actuator (`/actuator/faultinjector`)
+
+Expose with `management.endpoints.web.exposure.include=faultinjector`.
+
+| Method | Action |
+|--------|--------|
+| `GET` | Current config + per-rule `matchCount` / `triggerCount` |
+| `POST` | `enable`, `disable`, `setRuleEnabled`, `setProbability` |
+
+Secure write access like any sensitive actuator endpoint.
+
+### Local UI + REST API (`${fault.injection.ui.path}/api`)
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /config` | Live configuration |
+| `POST /enabled` | Global on/off |
+| `PUT /defaults` | Edit shared defaults |
+| `POST/PUT/DELETE /rules[...]` | CRUD rules; `POST .../enabled` per rule |
+| `GET /metrics`, `/metrics/timeseries`, `/events` | Counters, chart data, recent decisions |
+| `POST /metrics/reset` | Reset counters |
+| `GET /export?format=json\|csv` | Export metrics/events |
+| `GET /config/export?format=yaml` | Download current rules as `fault-injection.yml` |
+| `POST /config/merge` | Merge runtime edits into existing `application.yml` body |
+
+UI settings (`fault.injection.ui.*`): path (default `/fault-injector`), buffer/chart sizes, `require-localhost` for a coarse local-only gate, and `resilience.*` window tuning.
+
+Runtime edits live in memory until restart — use **Download config** or `/config/export` to persist.
+
+## Resilience signals
+
+On the Reports tab (and in `GET .../api/metrics` under a `resilience` block), the library observes how **your service** reacts to injected faults:
+
+- **Retries** — outbound calls to the same target shortly after an injected error
+- **Circuit breaker** — consecutive injected errors on a host+method, then calls during an observation window
+- **Observed delay** — wall-clock latency vs configured injection delay
+
+Tune windows via `fault.injection.ui.resilience.*` (`retry-window-ms`, `cb-consecutive-error-threshold`, `cb-observation-window-ms`, `observation-buffer-size`).
+
+## Cluster control plane *(optional)*
+
+```
+Apps (agent) ──outbound WebSocket/STOMP──► Control server + PostgreSQL
+                                                    └── Console /console/
 ```
 
 ```yaml
@@ -266,11 +182,37 @@ fault:
       server-url: ws://fault-injector-server:8080/ws
       service-name: ${spring.application.name}
       instance-id: ${HOSTNAME:}
+      telemetry-interval-ms: 2000
+      reconnect-delay-ms: 5000
 ```
 
-When the agent is enabled, outbound calls to the control server URL are excluded from fault injection automatically (along with the local UI and actuator paths).
+Each instance keeps its local `/fault-injector` UI. The console mirrors local UI operations per service, with `scope=all` (default) or `scope=<instanceId>` for a single pod. Telemetry aggregation includes resilience metrics.
 
-See [examples/README.md](examples/README.md) for the cloud demo (`make demo-cloud`). See [platform/README.md](platform/README.md) for server-only deployment. Local UI at `/fault-injector` continues to work on each pod.
+- Full stack demo: `make demo-cloud` → [examples/README.md](examples/README.md)
+- Server-only deploy: [platform/README.md](platform/README.md)
+
+## Demo app endpoints
+
+The [demo app](examples/fault-injector-demo/) hits configured rules via all three HTTP clients:
+
+| Path | What it shows |
+|------|----------------|
+| `GET /demo/normal` | No rule match — passes through |
+| `GET /demo/slow` | URL-pattern `DELAY` |
+| `GET /demo/flaky` | `EVERY_N` `ERROR` |
+| `GET /demo/healthy` | Matched but rule `enabled: false` |
+| `POST /demo/write` | Method-filtered `BOTH` (POST only) |
+| `GET /demo/write-but-get` | Same URL, GET excluded by method filter |
+| `GET /demo/probabilistic?p=0.5` | Catch-all; flip probability via actuator/UI |
+
+## Build
+
+```bash
+./mvnw clean verify              # library tests
+make verify                      # library + platform server tests
+mvn install -DskipTests          # install SNAPSHOT locally (needed for demo/platform)
+mvn -f platform/pom.xml package  # control server JAR
+```
 
 ## License
 
