@@ -66,8 +66,9 @@ public class FaultInjectionUiAutoConfiguration {
             FaultInjectionProperties properties,
             FaultDecisionStrategy strategy,
             FaultInjectionTelemetry telemetry,
+            FaultInjectionResilienceTelemetry resilienceTelemetry,
             Environment environment) {
-        return new FaultInjectorUiService(properties, strategy, telemetry, environment);
+        return new FaultInjectorUiService(properties, strategy, telemetry, resilienceTelemetry, environment);
     }
 
     @Bean

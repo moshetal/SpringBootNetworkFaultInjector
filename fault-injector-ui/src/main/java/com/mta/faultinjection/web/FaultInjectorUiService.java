@@ -10,6 +10,7 @@ import com.mta.faultinjection.core.FaultDecisionStrategyImpl.RuleMetrics;
 import com.mta.faultinjection.core.FaultType;
 import com.mta.faultinjection.core.TriggerMode;
 import com.mta.faultinjection.telemetry.FaultInjectionEvent;
+import com.mta.faultinjection.telemetry.FaultInjectionResilienceTelemetry;
 import com.mta.faultinjection.telemetry.FaultInjectionTelemetry;
 import com.mta.faultinjection.telemetry.FaultInjectionTelemetry.TimeSeriesBucket;
 import java.io.File;
@@ -60,16 +61,19 @@ public class FaultInjectorUiService {
     private final FaultInjectionProperties properties;
     private final FaultDecisionStrategy strategy;
     private final FaultInjectionTelemetry telemetry;
+    private final FaultInjectionResilienceTelemetry resilienceTelemetry;
     private final Environment environment;
 
     public FaultInjectorUiService(
             FaultInjectionProperties properties,
             FaultDecisionStrategy strategy,
             FaultInjectionTelemetry telemetry,
+            FaultInjectionResilienceTelemetry resilienceTelemetry,
             Environment environment) {
         this.properties = Objects.requireNonNull(properties, "properties");
         this.strategy = Objects.requireNonNull(strategy, "strategy");
         this.telemetry = Objects.requireNonNull(telemetry, "telemetry");
+        this.resilienceTelemetry = Objects.requireNonNull(resilienceTelemetry, "resilienceTelemetry");
         this.environment = environment;
     }
 
@@ -230,6 +234,21 @@ public class FaultInjectorUiService {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put(FaultInjectorViewJsonKeys.RULES, rows);
         out.put(FaultInjectorViewJsonKeys.TOTALS, totals);
+
+        Map<String, Object> resilience = new LinkedHashMap<>();
+        Map<String, Object> cfg = new LinkedHashMap<>();
+        FaultInjectionProperties.Ui.Resilience rCfg = properties.getUi().getResilience();
+        cfg.put(FaultInjectorViewJsonKeys.RETRY_WINDOW_MS, rCfg.getRetryWindowMs());
+        cfg.put(FaultInjectorViewJsonKeys.CB_THRESHOLD, rCfg.getCbConsecutiveErrorThreshold());
+        cfg.put(FaultInjectorViewJsonKeys.CB_WINDOW_MS, rCfg.getCbObservationWindowMs());
+        resilience.put(FaultInjectorViewJsonKeys.RESILIENCE_CONFIG, cfg);
+        resilience.put(FaultInjectorViewJsonKeys.RETRY_OBSERVATIONS, resilienceTelemetry.retryObservations());
+        resilience.put(
+                FaultInjectorViewJsonKeys.CIRCUIT_BREAKER_OBSERVATIONS,
+                resilienceTelemetry.circuitBreakerObservations());
+        resilience.put(FaultInjectorViewJsonKeys.DELAY_OBSERVATIONS, resilienceTelemetry.delayObservations());
+        out.put(FaultInjectorViewJsonKeys.RESILIENCE, resilience);
+
         return out;
     }
 
@@ -275,6 +294,7 @@ public class FaultInjectorUiService {
                 impl.resetMetrics();
             }
             telemetry.resetAll();
+            resilienceTelemetry.resetAll();
             return Map.of(FaultInjectorViewJsonKeys.RESET, "all");
         }
         if (strategy instanceof FaultDecisionStrategyImpl impl) {
