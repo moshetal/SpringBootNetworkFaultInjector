@@ -101,7 +101,7 @@
     <!-- ============ Reports tab ============ -->
     <section id="tab-reports" class="tab-panel hidden space-y-6">
 
-        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="grid sm:grid-cols-2 lg:grid-cols-6 gap-3">
             <div class="kpi-card">
                 <div class="kpi-label">Total matches</div>
                 <div class="kpi-value" id="kpi-matches">0</div>
@@ -117,6 +117,14 @@
             <div class="kpi-card">
                 <div class="kpi-label">Last fired</div>
                 <div class="kpi-value text-base" id="kpi-last-fired">never</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Avg retry depth</div>
+                <div class="kpi-value" id="kpi-retry-depth">—</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">Observed / injected delay</div>
+                <div class="kpi-value" id="kpi-delay-ratio">—</div>
             </div>
         </div>
 
@@ -135,6 +143,36 @@
             <div class="card-body">
                 <div class="chart-host">
                     <canvas id="ts-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Resilience signals</h2>
+                <p class="card-sub">How your service responded — retries, circuit breaker, observed wait. Cumulative since last reset.</p>
+            </div>
+            <div class="card-body grid lg:grid-cols-3 gap-4 p-4">
+                <div>
+                    <h3 class="font-semibold text-sm mb-2">Recent retry observations</h3>
+                    <table class="data-table compact">
+                        <thead><tr><th>Rule</th><th>Target</th><th class="text-right">Retries seen</th></tr></thead>
+                        <tbody id="retry-tbody"></tbody>
+                    </table>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-sm mb-2">Circuit-breaker windows</h3>
+                    <table class="data-table compact">
+                        <thead><tr><th>Host</th><th>Method</th><th class="text-right">Calls post-threshold</th></tr></thead>
+                        <tbody id="cb-tbody"></tbody>
+                    </table>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-sm mb-2">Observed delay vs injected</h3>
+                    <table class="data-table compact">
+                        <thead><tr><th>Rule</th><th class="text-right">Injected</th><th class="text-right">Observed</th><th>Done</th></tr></thead>
+                        <tbody id="delay-tbody"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
