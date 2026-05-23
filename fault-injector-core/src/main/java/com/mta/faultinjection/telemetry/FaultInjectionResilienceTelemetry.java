@@ -107,7 +107,11 @@ public class FaultInjectionResilienceTelemetry {
     public void noteObservedDelay(
             String ruleName, HttpMethod method, URI uri,
             long injectedDelayMs, long observedWaitMs, boolean completedSuccessfully) {
-        // Implemented in Task 7.
+        long now = clock.millis();
+        String host = uri == null || uri.getHost() == null ? "" : uri.getHost();
+        String m = method == null ? "" : method.name();
+        appendBounded(delays, new DelayObservation(
+                now, ruleName, host, m, injectedDelayMs, observedWaitMs, completedSuccessfully));
     }
 
     // ----- snapshots -----

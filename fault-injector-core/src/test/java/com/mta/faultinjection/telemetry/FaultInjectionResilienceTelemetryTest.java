@@ -134,6 +134,34 @@ class FaultInjectionResilienceTelemetryTest {
     }
 
     @Test
+    void noteObservedDelayBuffersSamplesNewestFirst() {
+        MutableClock c = new MutableClock(T0);
+        FaultInjectionResilienceTelemetry t =
+                new FaultInjectionResilienceTelemetry(30_000L, 3, 30_000L, 100, c);
+
+        t.noteObservedDelay("slow", HttpMethod.GET, URI.create("https://h/a"), 1000L, 1010L, true);
+        c.advanceMillis(5L);
+        t.noteObservedDelay("slow", HttpMethod.GET, URI.create("https://h/b"), 1000L, 300L, false);
+
+        List<DelayObservation> obs = t.delayObservations();
+        assertThat(obs).hasSize(2);
+        assertThat(obs.get(0).observedWaitMs()).isEqualTo(300L);
+        assertThat(obs.get(0).completedSuccessfully()).isFalse();
+        assertThat(obs.get(1).observedWaitMs()).isEqualTo(1010L);
+    }
+
+    @Test
+    void delayBufferIsBounded() {
+        MutableClock c = new MutableClock(T0);
+        FaultInjectionResilienceTelemetry t =
+                new FaultInjectionResilienceTelemetry(30_000L, 3, 30_000L, 2, c);
+        for (int i = 0; i < 5; i++) {
+            t.noteObservedDelay("r", HttpMethod.GET, URI.create("https://h/p"), 100L, 100L, true);
+        }
+        assertThat(t.delayObservations()).hasSize(2);
+    }
+
+    @Test
     void rejectsNonPositiveConfig() {
         assertThatThrownBy(() ->
                 new FaultInjectionResilienceTelemetry(0L, 5, 30_000L, 100, Clock.systemUTC()))
