@@ -151,5 +151,27 @@ public class FaultInjectionProperties {
          * Not a substitute for authentication; useful for local-only hardening.
          */
         private boolean requireLocalhost = false;
+
+        /** Sliding-window configuration for resilience-signal metrics. */
+        private Resilience resilience = new Resilience();
+
+        /**
+         * Tuning knobs for the resilience-signal observations surfaced on the
+         * Reports tab. All windows are measured in wall-clock milliseconds.
+         */
+        @Data
+        public static class Resilience {
+            /** Width of the window during which post-error outbound calls are counted as retries. */
+            private long retryWindowMs = 30_000L;
+
+            /** Consecutive injected ERROR triggers per (host, method) before a CB observation opens. */
+            private int cbConsecutiveErrorThreshold = 5;
+
+            /** Width of the window after the CB threshold during which post-window outbound calls are counted. */
+            private long cbObservationWindowMs = 30_000L;
+
+            /** Cap on the bounded ring buffer holding finalized observations per metric. */
+            private int observationBufferSize = 100;
+        }
     }
 }

@@ -45,5 +45,26 @@ public final class FaultInjectorViewJsonKeys {
     public static final String METRICS = "metrics";
     public static final String TIMESERIES = "timeseries";
 
+    // ----- resilience metrics -----
+    public static final String RESILIENCE = "resilience";
+    public static final String RESILIENCE_CONFIG = "config";
+    public static final String RETRY_OBSERVATIONS = "retryObservations";
+    public static final String CIRCUIT_BREAKER_OBSERVATIONS = "circuitBreakerObservations";
+    public static final String DELAY_OBSERVATIONS = "delayObservations";
+    public static final String RETRY_WINDOW_MS = "retryWindowMs";
+    public static final String CB_THRESHOLD = "cbThreshold";
+    public static final String CB_WINDOW_MS = "cbWindowMs";
+    public static final String HOST = "host";
+    public static final String URL_PATH = "urlPath";
+    public static final String FAULT_EPOCH_MS = "faultEpochMs";
+    public static final String OBSERVED_RETRIES = "observedRetries";
+    public static final String THRESHOLD = "threshold";
+    public static final String THRESHOLD_REACHED_AT_MS = "thresholdReachedAtMs";
+    public static final String POST_WINDOW_CALL_COUNT = "postWindowCallCount";
+    public static final String INJECTED_DELAY_MS = "injectedDelayMs";
+    public static final String OBSERVED_WAIT_MS = "observedWaitMs";
+    public static final String COMPLETED_SUCCESSFULLY = "completedSuccessfully";
+    public static final String TIMESTAMP_MS = "timestampMs";
+
     private FaultInjectorViewJsonKeys() {}
 }

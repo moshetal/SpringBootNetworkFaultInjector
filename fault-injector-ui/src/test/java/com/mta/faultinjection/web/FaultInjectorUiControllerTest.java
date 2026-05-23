@@ -16,8 +16,10 @@ import com.mta.faultinjection.config.FaultInjectionProperties.Rule;
 import com.mta.faultinjection.core.FaultDecisionStrategyImpl;
 import com.mta.faultinjection.core.FaultType;
 import com.mta.faultinjection.core.TriggerMode;
+import com.mta.faultinjection.telemetry.FaultInjectionResilienceTelemetry;
 import com.mta.faultinjection.telemetry.FaultInjectionTelemetry;
 import java.net.URI;
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,6 +39,7 @@ class FaultInjectorUiControllerTest {
     private FaultInjectionProperties properties;
     private FaultDecisionStrategyImpl strategy;
     private FaultInjectionTelemetry telemetry;
+    private FaultInjectionResilienceTelemetry resilienceTelemetry;
     private MockMvc mvc;
     private final ObjectMapper json = new ObjectMapper();
 
@@ -54,13 +57,14 @@ class FaultInjectorUiControllerTest {
         properties.getRules().add(seed);
 
         telemetry = new FaultInjectionTelemetry(50, 1_000L, 6);
+        resilienceTelemetry = new FaultInjectionResilienceTelemetry(30_000L, 5, 30_000L, 100, Clock.systemUTC());
         strategy = new FaultDecisionStrategyImpl(properties, () -> 0.0d, telemetry);
 
         // MockEnvironment has no property sources, so findApplicationYamlPath()
         // returns empty and exportConfig() takes the subtree-only fallback path —
         // which is what the existing tests assume.
-        FaultInjectorUiService service =
-                new FaultInjectorUiService(properties, strategy, telemetry, new MockEnvironment());
+        FaultInjectorUiService service = new FaultInjectorUiService(
+                properties, strategy, telemetry, resilienceTelemetry, new MockEnvironment());
         FaultInjectorUiController controller = new FaultInjectorUiController(service);
         mvc = MockMvcBuilders.standaloneSetup(controller).build();
     }
@@ -542,5 +546,26 @@ class FaultInjectorUiControllerTest {
                 .andExpect(header().string(
                                 "Content-Disposition",
                                 org.hamcrest.Matchers.containsString("filename=application-merged.yml")));
+    }
+
+    @Test
+    void metricsIncludesResilienceBlockWithConfigAndObservations() throws Exception {
+        // Record a delay sample so the resilience block has content.
+        resilienceTelemetry.noteObservedDelay(
+                "seed", HttpMethod.GET, URI.create("https://h/p"), 1_000L, 1_010L, true);
+
+        mvc.perform(get("/fault-injector/api/metrics"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resilience").exists())
+                .andExpect(jsonPath("$.resilience.config.retryWindowMs").value(30_000))
+                .andExpect(jsonPath("$.resilience.config.cbThreshold").value(5))
+                .andExpect(jsonPath("$.resilience.config.cbWindowMs").value(30_000))
+                .andExpect(jsonPath("$.resilience.retryObservations").isArray())
+                .andExpect(jsonPath("$.resilience.circuitBreakerObservations").isArray())
+                .andExpect(jsonPath("$.resilience.delayObservations.length()").value(1))
+                .andExpect(jsonPath("$.resilience.delayObservations[0].ruleName").value("seed"))
+                .andExpect(jsonPath("$.resilience.delayObservations[0].injectedDelayMs").value(1000))
+                .andExpect(jsonPath("$.resilience.delayObservations[0].observedWaitMs").value(1010))
+                .andExpect(jsonPath("$.resilience.delayObservations[0].completedSuccessfully").value(true));
     }
 }

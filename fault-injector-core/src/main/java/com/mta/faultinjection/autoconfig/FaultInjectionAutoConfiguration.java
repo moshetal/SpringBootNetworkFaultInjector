@@ -5,6 +5,7 @@ import com.mta.faultinjection.core.FaultDecisionStrategy;
 import com.mta.faultinjection.core.FaultDecisionStrategyImpl;
 import com.mta.faultinjection.interceptor.FaultInjectionFilter;
 import com.mta.faultinjection.interceptor.FaultInjectionInterceptor;
+import com.mta.faultinjection.telemetry.FaultInjectionResilienceTelemetry;
 import com.mta.faultinjection.telemetry.FaultInjectionTelemetry;
 import java.util.concurrent.ThreadLocalRandom;
 import org.springframework.beans.factory.ObjectProvider;
@@ -49,8 +50,11 @@ public class FaultInjectionAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnClass(name = {"org.springframework.web.client.RestTemplate"})
-    public FaultInjectionInterceptor faultInjectionInterceptor(FaultDecisionStrategy strategy) {
-        return new FaultInjectionInterceptor(strategy);
+    public FaultInjectionInterceptor faultInjectionInterceptor(
+            FaultDecisionStrategy strategy,
+            ObjectProvider<FaultInjectionResilienceTelemetry> resilience) {
+        return new FaultInjectionInterceptor(
+                strategy, com.mta.faultinjection.util.Sleeper.DEFAULT, resilience.getIfAvailable());
     }
 
     @Configuration(proxyBeanMethods = false)
@@ -80,8 +84,9 @@ public class FaultInjectionAutoConfiguration {
     static class WebClientAutoConfig {
         @Bean
         @ConditionalOnMissingBean
-        public FaultInjectionFilter faultInjectionFilter(FaultDecisionStrategy strategy) {
-            return new FaultInjectionFilter(strategy);
+        public FaultInjectionFilter faultInjectionFilter(
+                FaultDecisionStrategy strategy, ObjectProvider<FaultInjectionResilienceTelemetry> resilience) {
+            return new FaultInjectionFilter(strategy, resilience.getIfAvailable());
         }
 
         @Bean

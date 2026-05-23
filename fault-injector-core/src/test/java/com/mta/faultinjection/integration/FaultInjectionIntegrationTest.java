@@ -6,8 +6,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.mta.faultinjection.autoconfig.FaultInjectionAutoConfiguration;
 import com.mta.faultinjection.core.FaultType;
 import com.mta.faultinjection.core.TriggerMode;
+import com.mta.faultinjection.telemetry.FaultInjectionResilienceTelemetry;
+import com.mta.faultinjection.telemetry.RetryObservation;
 import java.io.IOException;
+import java.time.Clock;
 import java.time.Duration;
+import java.util.List;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterEach;
@@ -117,6 +121,57 @@ class FaultInjectionIntegrationTest {
                     .hasMessageContaining("502");
             assertThat(server.getRequestCount()).isZero();
         });
+    }
+
+    @Test
+    void retryObservationOpensOnErrorFaultViaRestTemplate() throws Exception {
+        // Tight 200ms window so the test finalizes quickly.
+        FaultInjectionResilienceTelemetry resilience =
+                new FaultInjectionResilienceTelemetry(200L, 5, 30_000L, 100, Clock.systemUTC());
+
+        contextRunner
+                .withBean(FaultInjectionResilienceTelemetry.class, () -> resilience)
+                .withPropertyValues(errorRule("retryable-error", 503, "boom"))
+                .run(ctx -> {
+                    RestTemplate rt = buildRestTemplate(ctx);
+                    String url = server.url("/retryable").toString();
+
+                    // Fire the fault — opens a retry observation against (host, GET, /retryable).
+                    assertThatThrownBy(() -> rt.getForObject(url, String.class))
+                            .isInstanceOf(HttpServerErrorException.class);
+
+                    // Wait past the window so it finalizes into the bounded buffer.
+                    Thread.sleep(250L);
+
+                    List<RetryObservation> obs = resilience.retryObservations();
+                    assertThat(obs).hasSize(1);
+                    assertThat(obs.get(0).ruleName()).isEqualTo("retryable-error");
+                    assertThat(obs.get(0).urlPath()).isEqualTo("/retryable");
+                    assertThat(obs.get(0).method()).isEqualTo("GET");
+                    assertThat(server.getRequestCount()).isZero();
+                });
+    }
+
+    @Test
+    void observedDelayRecordedForDelayFault() {
+        FaultInjectionResilienceTelemetry resilience =
+                new FaultInjectionResilienceTelemetry(30_000L, 5, 30_000L, 100, Clock.systemUTC());
+        server.enqueue(new MockResponse().setBody("ok").setResponseCode(200));
+
+        contextRunner
+                .withBean(FaultInjectionResilienceTelemetry.class, () -> resilience)
+                .withPropertyValues(delayRule("slow", 80))
+                .run(ctx -> {
+                    RestTemplate rt = buildRestTemplate(ctx);
+                    String body = rt.getForObject(server.url("/x").toString(), String.class);
+                    assertThat(body).isEqualTo("ok");
+
+                    assertThat(resilience.delayObservations()).hasSize(1);
+                    assertThat(resilience.delayObservations().get(0).ruleName()).isEqualTo("slow");
+                    assertThat(resilience.delayObservations().get(0).injectedDelayMs()).isEqualTo(80L);
+                    assertThat(resilience.delayObservations().get(0).observedWaitMs()).isGreaterThanOrEqualTo(70L);
+                    assertThat(resilience.delayObservations().get(0).completedSuccessfully()).isTrue();
+                });
     }
 
     @Test

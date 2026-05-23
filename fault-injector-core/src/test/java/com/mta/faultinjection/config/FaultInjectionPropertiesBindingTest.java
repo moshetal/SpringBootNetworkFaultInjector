@@ -63,4 +63,34 @@ class FaultInjectionPropertiesBindingTest {
                     assertThat(second.getErrorStatus()).isEqualTo(503);
                 });
     }
+
+    @Test
+    void resilienceDefaultsAreApplied() {
+        contextRunner.run(ctx -> {
+            FaultInjectionProperties props = ctx.getBean(FaultInjectionProperties.class);
+            FaultInjectionProperties.Ui.Resilience r = props.getUi().getResilience();
+            assertThat(r.getRetryWindowMs()).isEqualTo(30_000L);
+            assertThat(r.getCbConsecutiveErrorThreshold()).isEqualTo(5);
+            assertThat(r.getCbObservationWindowMs()).isEqualTo(30_000L);
+            assertThat(r.getObservationBufferSize()).isEqualTo(100);
+        });
+    }
+
+    @Test
+    void resilienceOverridesBindFromKebabCaseKeys() {
+        contextRunner
+                .withPropertyValues(
+                        "fault.injection.ui.resilience.retry-window-ms=5000",
+                        "fault.injection.ui.resilience.cb-consecutive-error-threshold=3",
+                        "fault.injection.ui.resilience.cb-observation-window-ms=10000",
+                        "fault.injection.ui.resilience.observation-buffer-size=25")
+                .run(ctx -> {
+                    FaultInjectionProperties props = ctx.getBean(FaultInjectionProperties.class);
+                    FaultInjectionProperties.Ui.Resilience r = props.getUi().getResilience();
+                    assertThat(r.getRetryWindowMs()).isEqualTo(5_000L);
+                    assertThat(r.getCbConsecutiveErrorThreshold()).isEqualTo(3);
+                    assertThat(r.getCbObservationWindowMs()).isEqualTo(10_000L);
+                    assertThat(r.getObservationBufferSize()).isEqualTo(25);
+                });
+    }
 }

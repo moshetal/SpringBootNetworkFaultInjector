@@ -90,10 +90,37 @@
 .status-on    { color: #047857; border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.1); }
 .status-off   { color: #586378; border-color: #b9c0d0; background: rgba(238, 240, 244, 0.6); }
 .status-fired { color: #be123c; border-color: rgba(244, 63, 94, 0.4); background: rgba(244, 63, 94, 0.1); }
+.status-warn  { color: #b45309; border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.1); }
+.status-info  { color: #4338ca; border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.1); }
 @media (prefers-color-scheme: dark) {
     .status-on    { color: #6ee7b7; }
     .status-off   { color: #b9c0d0; background: rgba(42, 49, 66, 0.4); border-color: #3d465a; }
     .status-fired { color: #fda4af; }
+    .status-warn  { color: #fcd34d; }
+    .status-info  { color: #c7d2fe; }
+}
+
+/* ---------- resilience summary ---------- */
+.resilience-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+}
+.resilience-summary-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.875rem;
+}
+.resilience-summary-empty {
+    font-size: 0.8125rem;
+    color: #586378;
+    font-style: italic;
+}
+@media (prefers-color-scheme: dark) {
+    .resilience-summary-empty { color: #94a3b8; }
 }
 
 /* ---------- toggle switch (on/off) ---------- */

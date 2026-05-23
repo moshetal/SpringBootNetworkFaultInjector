@@ -243,6 +243,230 @@ function renderMetrics(m) {
             ]),
         ]));
     }
+
+    renderResilience(m.resilience);
+}
+
+function renderResilience(res) {
+    const retries = (res && res.retryObservations) || [];
+    const delays = (res && res.delayObservations) || [];
+    const cbs = (res && res.circuitBreakerObservations) || [];
+
+    // KPIs — averages across all observations.
+    $('#kpi-retry-depth').textContent = retries.length
+        ? (retries.reduce((s, o) => s + (o.observedRetries || 0), 0) / retries.length).toFixed(2)
+        : '—';
+
+    const ratios = delays
+        .map(o => (o.injectedDelayMs > 0 ? o.observedWaitMs / o.injectedDelayMs : null))
+        .filter(v => v !== null);
+    $('#kpi-delay-ratio').textContent = ratios.length
+        ? (ratios.reduce((a, b) => a + b, 0) / ratios.length).toFixed(2) + 'x'
+        : '—';
+
+    renderResilienceSummary(retries, cbs, delays);
+    renderRetryTable(retries);
+    renderCbTable(cbs);
+    renderDelayTable(delays);
+}
+
+// ---- verdict helpers ----
+
+function retryVerdict(observedRetries) {
+    const n = observedRetries || 0;
+    if (n >= 1) return { className: 'status-on', label: '✓ ' + n + ' retr' + (n === 1 ? 'y' : 'ies') };
+    return { className: 'status-off', label: '— no retry' };
+}
+
+function cbVerdict(postWindowCallCount) {
+    const n = postWindowCallCount || 0;
+    if (n === 0) return { className: 'status-on', label: '✓ CB held' };
+    return { className: 'status-fired', label: '✗ ' + n + ' got through' };
+}
+
+function delayVerdict(injectedMs, observedMs, completedSuccessfully) {
+    if (!injectedMs) return { className: 'status-off', label: '—' };
+    const ratio = observedMs / injectedMs;
+    if (ratio < 0.9) {
+        return { className: 'status-on', label: '✓ timed out (' + ratio.toFixed(2) + 'x)' };
+    }
+    if (!completedSuccessfully) {
+        return { className: 'status-warn', label: '⚠ cancelled (' + ratio.toFixed(2) + 'x)' };
+    }
+    return { className: 'status-warn', label: '⚠ no timeout (' + ratio.toFixed(2) + 'x)' };
+}
+
+function pill(verdict) {
+    return el('span', { className: 'status-pill ' + verdict.className }, verdict.label);
+}
+
+// ---- per-rule summary ----
+
+function renderResilienceSummary(retries, cbs, delays) {
+    const host = $('#resilience-summary');
+    host.innerHTML = '';
+    const lines = [];
+
+    const retriesByRule = groupBy(retries, o => o.ruleName || '(unnamed)');
+    for (const [rule, obs] of retriesByRule) {
+        const depths = obs.map(o => o.observedRetries || 0);
+        const avg = depths.reduce((a, b) => a + b, 0) / depths.length;
+        const max = Math.max(...depths);
+        if (max >= 1) {
+            lines.push({
+                className: 'status-on',
+                label: '✓ retries detected',
+                text: rule + ' — ' + obs.length + ' observation' + plural(obs.length) +
+                      ', avg depth ' + avg.toFixed(1) + ', max ' + max,
+            });
+        } else {
+            lines.push({
+                className: 'status-warn',
+                label: '⚠ no retries',
+                text: rule + ' — ' + obs.length + ' observation' + plural(obs.length) +
+                      ', the caller did not retry the same target between fires',
+            });
+        }
+    }
+
+    const cbByKey = groupBy(cbs, o => (o.method || '?') + ' ' + (o.host || '?'));
+    for (const [key, obs] of cbByKey) {
+        const heldCount = obs.filter(o => (o.postWindowCallCount || 0) === 0).length;
+        const totalCalls = obs.reduce((a, o) => a + (o.postWindowCallCount || 0), 0);
+        if (heldCount === obs.length) {
+            lines.push({
+                className: 'status-on',
+                label: '✓ CB held',
+                text: key + ' — ' + obs.length + ' window' + plural(obs.length) +
+                      ', 0 calls after threshold',
+            });
+        } else {
+            lines.push({
+                className: 'status-fired',
+                label: '✗ CB did not open',
+                text: key + ' — ' + obs.length + ' window' + plural(obs.length) +
+                      ', ' + totalCalls + ' call' + plural(totalCalls) + ' got through after threshold',
+            });
+        }
+    }
+
+    const delaysByRule = groupBy(delays, o => o.ruleName || '(unnamed)');
+    for (const [rule, obs] of delaysByRule) {
+        const valid = obs.filter(o => o.injectedDelayMs > 0);
+        if (!valid.length) continue;
+        const ratios = valid.map(o => o.observedWaitMs / o.injectedDelayMs);
+        const avgRatio = ratios.reduce((a, b) => a + b, 0) / ratios.length;
+        const timedOut = valid.filter(o => o.observedWaitMs < 0.9 * o.injectedDelayMs).length;
+        if (timedOut === valid.length) {
+            lines.push({
+                className: 'status-on',
+                label: '✓ timeout fires',
+                text: rule + ' — ' + valid.length + ' sample' + plural(valid.length) +
+                      ', caller bailed (avg ' + avgRatio.toFixed(2) + 'x injected)',
+            });
+        } else if (timedOut === 0) {
+            lines.push({
+                className: 'status-warn',
+                label: '⚠ no timeout',
+                text: rule + ' — ' + valid.length + ' sample' + plural(valid.length) +
+                      ', caller waited the full delay (avg ' + avgRatio.toFixed(2) + 'x injected)',
+            });
+        } else {
+            lines.push({
+                className: 'status-info',
+                label: 'ℹ mixed',
+                text: rule + ' — ' + valid.length + ' sample' + plural(valid.length) +
+                      ', ' + timedOut + ' timed out (avg ' + avgRatio.toFixed(2) + 'x)',
+            });
+        }
+    }
+
+    if (!lines.length) {
+        host.appendChild(el('div', { className: 'resilience-summary-empty' },
+            'No resilience signals yet. Drive ERROR or DELAY-bearing traffic to populate this section.'));
+        return;
+    }
+    for (const line of lines) {
+        host.appendChild(el('div', { className: 'resilience-summary-row' }, [
+            pill({ className: line.className, label: line.label }),
+            el('span', { className: 'text-slate-700 dark:text-slate-200' }, line.text),
+        ]));
+    }
+}
+
+// ---- detail tables ----
+
+function renderRetryTable(retries) {
+    const tbody = $('#retry-tbody');
+    tbody.innerHTML = '';
+    if (!retries.length) {
+        tbody.appendChild(el('tr', {}, [
+            el('td', { colspan: '3', className: 'text-center text-slate-500 dark:text-slate-400 py-3 text-xs' },
+                'No retry observations yet.'),
+        ]));
+        return;
+    }
+    for (const o of retries.slice(0, 20)) {
+        tbody.appendChild(el('tr', {}, [
+            el('td', { className: 'font-medium whitespace-nowrap' }, o.ruleName || '—'),
+            el('td', { className: 'truncate max-w-[14rem] font-mono text-xs' },
+                (o.method || '') + ' ' + (o.host || '') + (o.urlPath || '')),
+            el('td', { className: 'text-right' }, [pill(retryVerdict(o.observedRetries))]),
+        ]));
+    }
+}
+
+function renderCbTable(cbs) {
+    const tbody = $('#cb-tbody');
+    tbody.innerHTML = '';
+    if (!cbs.length) {
+        tbody.appendChild(el('tr', {}, [
+            el('td', { colspan: '3', className: 'text-center text-slate-500 dark:text-slate-400 py-3 text-xs' },
+                'No circuit-breaker windows yet.'),
+        ]));
+        return;
+    }
+    for (const o of cbs.slice(0, 20)) {
+        tbody.appendChild(el('tr', {}, [
+            el('td', { className: 'truncate max-w-[10rem]' }, o.host || '—'),
+            el('td', { className: 'tabular-nums' }, o.method || '—'),
+            el('td', { className: 'text-right' }, [pill(cbVerdict(o.postWindowCallCount))]),
+        ]));
+    }
+}
+
+function renderDelayTable(delays) {
+    const tbody = $('#delay-tbody');
+    tbody.innerHTML = '';
+    if (!delays.length) {
+        tbody.appendChild(el('tr', {}, [
+            el('td', { colspan: '4', className: 'text-center text-slate-500 dark:text-slate-400 py-3 text-xs' },
+                'No delay observations yet.'),
+        ]));
+        return;
+    }
+    for (const o of delays.slice(0, 20)) {
+        tbody.appendChild(el('tr', {}, [
+            el('td', { className: 'font-medium whitespace-nowrap' }, o.ruleName || '—'),
+            el('td', { className: 'text-right tabular-nums' }, o.injectedDelayMs + ' ms'),
+            el('td', { className: 'text-right tabular-nums' }, o.observedWaitMs + ' ms'),
+            el('td', {}, [pill(delayVerdict(o.injectedDelayMs, o.observedWaitMs, o.completedSuccessfully))]),
+        ]));
+    }
+}
+
+function groupBy(arr, keyFn) {
+    const m = new Map();
+    for (const item of arr) {
+        const k = keyFn(item);
+        if (!m.has(k)) m.set(k, []);
+        m.get(k).push(item);
+    }
+    return m;
+}
+
+function plural(n) {
+    return n === 1 ? '' : 's';
 }
 
 function renderEvents(payload) {
