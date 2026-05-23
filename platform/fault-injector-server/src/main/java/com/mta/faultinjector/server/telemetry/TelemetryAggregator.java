@@ -18,6 +18,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class TelemetryAggregator {
 
+    private static final String RULES = "rules";
+    private static final String NAME = "name";
+    private static final String MATCH_COUNT = "matchCount";
+    private static final String TRIGGER_COUNT = "triggerCount";
+
     private final ObjectMapper mapper;
     private final Map<String, TelemetryBatch> latestByInstance = new ConcurrentHashMap<>();
 
@@ -55,15 +60,17 @@ public class TelemetryAggregator {
             return batches.get(0).config();
         }
         boolean consistent = true;
-        JsonNode first = batches.get(0).config();
+        JsonNode firstNorm = normalizeConfigForComparison(batches.get(0).config());
         for (int i = 1; i < batches.size(); i++) {
-            if (!first.equals(batches.get(i).config())) {
+            if (!firstNorm.equals(normalizeConfigForComparison(batches.get(i).config()))) {
                 consistent = false;
                 break;
             }
         }
         if (consistent) {
-            return first;
+            ObjectNode merged = batches.get(0).config().deepCopy();
+            mergeConfigRuleCounters(batches, merged);
+            return merged;
         }
         ObjectNode out = mapper.createObjectNode();
         out.put("consistent", false);
@@ -208,6 +215,60 @@ public class TelemetryAggregator {
         out.put("count", arr.size());
         out.set("events", arr);
         return out;
+    }
+
+    private JsonNode normalizeConfigForComparison(JsonNode config) {
+        if (config == null || !config.isObject()) {
+            return config;
+        }
+        ObjectNode copy = config.deepCopy();
+        JsonNode rules = copy.get(RULES);
+        if (rules != null && rules.isArray()) {
+            List<JsonNode> normalized = new ArrayList<>();
+            for (JsonNode rule : rules) {
+                ObjectNode ruleCopy = rule.deepCopy();
+                ruleCopy.remove(MATCH_COUNT);
+                ruleCopy.remove(TRIGGER_COUNT);
+                normalized.add(ruleCopy);
+            }
+            normalized.sort(Comparator.comparing(n -> n.path(NAME).asText("")));
+            ArrayNode sorted = mapper.createArrayNode();
+            normalized.forEach(sorted::add);
+            copy.set(RULES, sorted);
+        }
+        return copy;
+    }
+
+    private void mergeConfigRuleCounters(List<TelemetryBatch> batches, ObjectNode config) {
+        JsonNode rules = config.get(RULES);
+        if (rules == null || !rules.isArray()) {
+            return;
+        }
+        Map<String, long[]> sums = new HashMap<>();
+        for (TelemetryBatch batch : batches) {
+            JsonNode batchRules = batch.config().path(RULES);
+            if (!batchRules.isArray()) {
+                continue;
+            }
+            for (JsonNode rule : batchRules) {
+                String name = rule.path(NAME).asText("(unnamed)");
+                long[] totals = sums.computeIfAbsent(name, ignored -> new long[2]);
+                totals[0] += rule.path(MATCH_COUNT).asLong(0);
+                totals[1] += rule.path(TRIGGER_COUNT).asLong(0);
+            }
+        }
+        ArrayNode mergedRules = mapper.createArrayNode();
+        for (JsonNode rule : rules) {
+            ObjectNode ruleCopy = rule.deepCopy();
+            String name = rule.path(NAME).asText("(unnamed)");
+            long[] totals = sums.get(name);
+            if (totals != null) {
+                ruleCopy.put(MATCH_COUNT, totals[0]);
+                ruleCopy.put(TRIGGER_COUNT, totals[1]);
+            }
+            mergedRules.add(ruleCopy);
+        }
+        config.set(RULES, mergedRules);
     }
 
     private JsonNode emptyMetrics() {

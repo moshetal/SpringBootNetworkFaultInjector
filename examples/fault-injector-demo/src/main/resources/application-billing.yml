@@ -1,0 +1,54 @@
+spring:
+  config:
+    activate:
+      on-profile: billing
+  application:
+    name: billing-service
+
+fault:
+  injection:
+    rules:
+      - name: slow-billing
+        url-pattern: ".*/upstream/billing/.*"
+        fault: DELAY
+        mode: PROBABILITY
+        probability: 1.0
+        delay-ms: 600
+
+      - name: flaky-search
+        url-pattern: ".*/upstream/search/.*"
+        fault: ERROR
+        mode: EVERY_N
+        every-n: 3
+        error-status: 502
+        error-message: "search index is flaky today"
+
+      - name: writes-bad
+        url-pattern: ".*/upstream/.*/write"
+        methods: [POST]
+        fault: BOTH
+        mode: PROBABILITY
+        probability: 1.0
+        delay-ms: 250
+        error-status: 504
+        error-message: "writes are temporarily faulted"
+
+      - name: healthy-but-disabled
+        url-pattern: ".*/upstream/healthy.*"
+        enabled: false
+        fault: ERROR
+        mode: PROBABILITY
+        probability: 1.0
+        error-status: 500
+
+      - name: external-host-example
+        host-pattern: "api\\.partner\\.example\\.com"
+        fault: DELAY
+        mode: PROBABILITY
+        probability: 0.25
+        delay-ms: 1500
+
+      - name: probabilistic-catchall
+        url-pattern: ".*/upstream/probabilistic/.*"
+        fault: BOTH
+        probability: 0.0

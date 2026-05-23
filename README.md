@@ -24,7 +24,7 @@ From the repo root:
 | Demo | Command | Open |
 |------|---------|------|
 | Local (one app) | `make demo-local` | http://localhost:8080/fault-injector/ |
-| Cloud (server + 2 pods) | `make demo-cloud` | http://localhost:8080/console/ |
+| Cloud (2 services, 4 pods) | `make demo-cloud` | http://localhost:8080/console/ |
 
 Without `make` (Windows, etc.):
 
@@ -186,7 +186,7 @@ fault:
       reconnect-delay-ms: 5000
 ```
 
-Each instance keeps its local `/fault-injector` UI. The console mirrors local UI operations per service, with `scope=all` (default) or `scope=<instanceId>` for a single pod. Telemetry aggregation includes resilience metrics.
+Each instance keeps its local `/fault-injector` UI. The console lists multiple services (e.g. `billing-service`, `catalog-service`), each with several pods; use `scope=all` (default) or `scope=<instanceId>` for one pod. Telemetry aggregation includes resilience metrics.
 
 - Full stack demo: `make demo-cloud` → [examples/README.md](examples/README.md)
 - Server-only deploy: [platform/README.md](platform/README.md)
@@ -204,6 +204,14 @@ The [demo app](examples/fault-injector-demo/) hits configured rules via all thre
 | `POST /demo/write` | Method-filtered `BOTH` (POST only) |
 | `GET /demo/write-but-get` | Same URL, GET excluded by method filter |
 | `GET /demo/probabilistic?p=0.5` | Catch-all; flip probability via actuator/UI |
+
+**Catalog profile** (`SPRING_PROFILES_ACTIVE=catalog`, cloud ports 8083–8084):
+
+| Path | What it shows |
+|------|----------------|
+| `GET /demo/catalog/browse` | Product list `DELAY` |
+| `GET /demo/catalog/search` | `EVERY_N` `ERROR` on recommendations |
+| `GET /demo/catalog/cache` | Probabilistic `BOTH` on cache refresh |
 
 ## Build
 

@@ -1,0 +1,38 @@
+spring:
+  config:
+    activate:
+      on-profile: catalog
+  application:
+    name: catalog-service
+
+fault:
+  injection:
+    defaults:
+      delay-ms: 50
+      error-status: 503
+      error-message: "Catalog dependency unavailable"
+
+    rules:
+      - name: slow-product-list
+        url-pattern: ".*/upstream/catalog/products.*"
+        fault: DELAY
+        mode: PROBABILITY
+        probability: 1.0
+        delay-ms: 400
+
+      - name: flaky-recommendations
+        url-pattern: ".*/upstream/catalog/search.*"
+        fault: ERROR
+        mode: EVERY_N
+        every-n: 4
+        error-status: 503
+        error-message: "recommendation engine timeout"
+
+      - name: stale-cache
+        url-pattern: ".*/upstream/catalog/cache.*"
+        fault: BOTH
+        mode: PROBABILITY
+        probability: 0.5
+        delay-ms: 150
+        error-status: 504
+        error-message: "cache refresh failed"

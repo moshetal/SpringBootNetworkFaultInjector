@@ -106,6 +106,24 @@ public class DemoController {
         return r;
     }
 
+    /** Catalog profile: DELAY on product listing paths. */
+    @GetMapping("/demo/catalog/browse")
+    public Map<String, Object> catalogBrowse() {
+        return get("RestTemplate", "/upstream/catalog/products", restTemplate);
+    }
+
+    /** Catalog profile: EVERY_N ERROR on search/recommendation paths. */
+    @GetMapping("/demo/catalog/search")
+    public Map<String, Object> catalogSearch() {
+        return get("WebClient", "/upstream/catalog/search", webClient);
+    }
+
+    /** Catalog profile: probabilistic BOTH on cache refresh paths. */
+    @GetMapping("/demo/catalog/cache")
+    public Map<String, Object> catalogCache() {
+        return get("RestClient", "/upstream/catalog/cache", restClient);
+    }
+
     // ----- helpers -----
 
     private Map<String, Object> get(String label, String path, RestTemplate rt) {

@@ -27,32 +27,62 @@ services:
       postgres:
         condition: service_healthy
 
-  demo-a:
+  billing-a:
     build:
       context: ../..
       dockerfile: examples/docker/Dockerfile.demo
     environment:
-      SPRING_APPLICATION_NAME: fault-injector-demo
+      SPRING_PROFILES_ACTIVE: billing
       FAULT_INJECTION_AGENT_ENABLED: "true"
       FAULT_INJECTION_AGENT_SERVER_URL: ws://fault-injector-server:8080/ws
-      FAULT_INJECTION_AGENT_INSTANCE_ID: demo-a
+      FAULT_INJECTION_AGENT_INSTANCE_ID: billing-a
       FAULT_INJECTION_ENABLED: "true"
     ports:
       - "8081:8080"
     depends_on:
       - fault-injector-server
 
-  demo-b:
+  billing-b:
     build:
       context: ../..
       dockerfile: examples/docker/Dockerfile.demo
     environment:
-      SPRING_APPLICATION_NAME: fault-injector-demo
+      SPRING_PROFILES_ACTIVE: billing
       FAULT_INJECTION_AGENT_ENABLED: "true"
       FAULT_INJECTION_AGENT_SERVER_URL: ws://fault-injector-server:8080/ws
-      FAULT_INJECTION_AGENT_INSTANCE_ID: demo-b
+      FAULT_INJECTION_AGENT_INSTANCE_ID: billing-b
       FAULT_INJECTION_ENABLED: "true"
     ports:
       - "8082:8080"
+    depends_on:
+      - fault-injector-server
+
+  catalog-a:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.demo
+    environment:
+      SPRING_PROFILES_ACTIVE: catalog
+      FAULT_INJECTION_AGENT_ENABLED: "true"
+      FAULT_INJECTION_AGENT_SERVER_URL: ws://fault-injector-server:8080/ws
+      FAULT_INJECTION_AGENT_INSTANCE_ID: catalog-a
+      FAULT_INJECTION_ENABLED: "true"
+    ports:
+      - "8083:8080"
+    depends_on:
+      - fault-injector-server
+
+  catalog-b:
+    build:
+      context: ../..
+      dockerfile: examples/docker/Dockerfile.demo
+    environment:
+      SPRING_PROFILES_ACTIVE: catalog
+      FAULT_INJECTION_AGENT_ENABLED: "true"
+      FAULT_INJECTION_AGENT_SERVER_URL: ws://fault-injector-server:8080/ws
+      FAULT_INJECTION_AGENT_INSTANCE_ID: catalog-b
+      FAULT_INJECTION_ENABLED: "true"
+    ports:
+      - "8084:8080"
     depends_on:
       - fault-injector-server
