@@ -166,11 +166,12 @@ public class FaultDecisionStrategyImpl implements FaultDecisionStrategy {
 
         switch (rule.getFault()) {
             case DELAY:
-                return FaultDecision.delay(Duration.ofMillis(Math.max(0L, delayMs)));
+                return FaultDecision.delay(Duration.ofMillis(Math.max(0L, delayMs))).withRuleName(rule.getName());
             case ERROR:
-                return FaultDecision.error(status, message);
+                return FaultDecision.error(status, message).withRuleName(rule.getName());
             case BOTH:
-                return FaultDecision.delayThenError(Duration.ofMillis(Math.max(0L, delayMs)), status, message);
+                return FaultDecision.delayThenError(Duration.ofMillis(Math.max(0L, delayMs)), status, message)
+                        .withRuleName(rule.getName());
             default:
                 return FaultDecision.pass();
         }

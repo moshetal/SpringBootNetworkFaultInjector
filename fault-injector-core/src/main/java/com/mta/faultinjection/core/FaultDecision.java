@@ -31,12 +31,19 @@ public final class FaultDecision {
     private final Duration delay;
     private final int errorStatus;
     private final String errorMessage;
+    private final String ruleName;
 
     private FaultDecision(Instruction instruction, Duration delay, int errorStatus, String errorMessage) {
+        this(instruction, delay, errorStatus, errorMessage, null);
+    }
+
+    private FaultDecision(
+            Instruction instruction, Duration delay, int errorStatus, String errorMessage, String ruleName) {
         this.instruction = Objects.requireNonNull(instruction, "instruction");
         this.delay = delay == null ? Duration.ZERO : delay;
         this.errorStatus = errorStatus;
         this.errorMessage = errorMessage;
+        this.ruleName = ruleName;
     }
 
     /** A no-op decision; interceptors should pass the request through. */
@@ -81,6 +88,16 @@ public final class FaultDecision {
 
     public boolean hasError() {
         return instruction == Instruction.INJECT_ERROR || instruction == Instruction.INJECT_DELAY_AND_ERROR;
+    }
+
+    /** Optional name of the rule that produced this decision; {@code null} when not set. */
+    public String ruleName() {
+        return ruleName;
+    }
+
+    /** Return a copy of this decision with {@code ruleName} populated. */
+    public FaultDecision withRuleName(String ruleName) {
+        return new FaultDecision(instruction, delay, errorStatus, errorMessage, ruleName);
     }
 
     @Override
