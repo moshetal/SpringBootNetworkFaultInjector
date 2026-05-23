@@ -5,11 +5,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.mta.faultinjection.core.FaultDecision;
 import com.mta.faultinjection.core.FaultDecisionStrategy;
+import com.mta.faultinjection.telemetry.FaultInjectionResilienceTelemetry;
 import com.mta.faultinjection.util.Sleeper;
 import java.io.InterruptedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
@@ -88,8 +92,76 @@ class FaultInjectionInterceptorTest {
         }
     }
 
+    @Test
+    void observeOutboundIsCalledOnceWithDecision() throws Exception {
+        FaultDecision decision = FaultDecision.delay(Duration.ofMillis(5)).withRuleName("slow");
+        RecordingResilience resilience = new RecordingResilience();
+        FaultInjectionInterceptor interceptor =
+                new FaultInjectionInterceptor(strategyReturning(decision), millis -> {}, resilience);
+
+        interceptor.intercept(request, body, (req, b) -> new MockClientHttpResponse(new byte[0], 200));
+
+        assertThat(resilience.observed).hasSize(1);
+        assertThat(resilience.observed.get(0).decision()).isSameAs(decision);
+    }
+
+    @Test
+    void noteObservedDelayCapturesElapsedForDelayFault() throws Exception {
+        FaultDecision decision = FaultDecision.delay(Duration.ofMillis(50)).withRuleName("slow");
+        RecordingResilience resilience = new RecordingResilience();
+        FaultInjectionInterceptor interceptor =
+                new FaultInjectionInterceptor(strategyReturning(decision), millis -> {}, resilience);
+
+        interceptor.intercept(request, body, (req, b) -> new MockClientHttpResponse(new byte[0], 200));
+
+        assertThat(resilience.delays).hasSize(1);
+        RecordingResilience.DelayCall d = resilience.delays.get(0);
+        assertThat(d.ruleName()).isEqualTo("slow");
+        assertThat(d.injectedMs()).isEqualTo(50L);
+        assertThat(d.observedMs()).isGreaterThanOrEqualTo(0L);
+        assertThat(d.completedSuccessfully()).isTrue();
+    }
+
+    @Test
+    void noteObservedDelayIsNotCalledForPureErrorFault() throws Exception {
+        FaultDecision decision = FaultDecision.error(503, "x").withRuleName("err-only");
+        RecordingResilience resilience = new RecordingResilience();
+        FaultInjectionInterceptor interceptor =
+                new FaultInjectionInterceptor(strategyReturning(decision), millis -> {}, resilience);
+
+        interceptor.intercept(request, body, (req, b) -> new MockClientHttpResponse(new byte[0], 200));
+
+        assertThat(resilience.delays).isEmpty();
+    }
+
     private static FaultDecisionStrategy strategyReturning(FaultDecision decision) {
         return (method, uri) -> decision;
+    }
+
+    /** Hand-rolled test double; project does not use Mockito. */
+    static final class RecordingResilience extends FaultInjectionResilienceTelemetry {
+        record ObserveCall(HttpMethod method, URI uri, FaultDecision decision) {}
+
+        record DelayCall(String ruleName, long injectedMs, long observedMs, boolean completedSuccessfully) {}
+
+        final List<ObserveCall> observed = new ArrayList<>();
+        final List<DelayCall> delays = new ArrayList<>();
+
+        RecordingResilience() {
+            super(30_000L, 5, 30_000L, 100, Clock.systemUTC());
+        }
+
+        @Override
+        public void observeOutbound(HttpMethod method, URI uri, FaultDecision decision) {
+            observed.add(new ObserveCall(method, uri, decision));
+        }
+
+        @Override
+        public void noteObservedDelay(
+                String ruleName, HttpMethod method, URI uri,
+                long injectedDelayMs, long observedWaitMs, boolean completedSuccessfully) {
+            delays.add(new DelayCall(ruleName, injectedDelayMs, observedWaitMs, completedSuccessfully));
+        }
     }
 
     private static final class StubRequest implements HttpRequest {
