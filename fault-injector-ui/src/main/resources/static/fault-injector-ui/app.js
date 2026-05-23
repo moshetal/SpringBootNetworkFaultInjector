@@ -243,6 +243,80 @@ function renderMetrics(m) {
             ]),
         ]));
     }
+
+    renderResilience(m.resilience);
+}
+
+function renderResilience(res) {
+    const retries = (res && res.retryObservations) || [];
+    const delays = (res && res.delayObservations) || [];
+    const cbs = (res && res.circuitBreakerObservations) || [];
+
+    // KPIs
+    $('#kpi-retry-depth').textContent = retries.length
+        ? (retries.reduce((s, o) => s + (o.observedRetries || 0), 0) / retries.length).toFixed(2)
+        : '—';
+
+    const ratios = delays
+        .map(o => (o.injectedDelayMs > 0 ? o.observedWaitMs / o.injectedDelayMs : null))
+        .filter(v => v !== null);
+    $('#kpi-delay-ratio').textContent = ratios.length
+        ? (ratios.reduce((a, b) => a + b, 0) / ratios.length).toFixed(2) + 'x'
+        : '—';
+
+    // Tables — use el() for safe DOM construction; never innerHTML user strings.
+    const retryBody = $('#retry-tbody');
+    retryBody.innerHTML = '';
+    if (!retries.length) {
+        retryBody.appendChild(el('tr', {}, [
+            el('td', { colspan: '3', className: 'text-center text-slate-500 dark:text-slate-400 py-3 text-xs' },
+                'No retry observations yet.'),
+        ]));
+    } else {
+        for (const o of retries.slice(0, 20)) {
+            retryBody.appendChild(el('tr', {}, [
+                el('td', { className: 'font-medium' }, o.ruleName || '—'),
+                el('td', { className: 'truncate max-w-[14rem] font-mono text-xs' },
+                    `${o.method} ${o.host}${o.urlPath}`),
+                el('td', { className: 'text-right tabular-nums' }, String(o.observedRetries ?? 0)),
+            ]));
+        }
+    }
+
+    const cbBody = $('#cb-tbody');
+    cbBody.innerHTML = '';
+    if (!cbs.length) {
+        cbBody.appendChild(el('tr', {}, [
+            el('td', { colspan: '3', className: 'text-center text-slate-500 dark:text-slate-400 py-3 text-xs' },
+                'No circuit-breaker windows yet.'),
+        ]));
+    } else {
+        for (const o of cbs.slice(0, 20)) {
+            cbBody.appendChild(el('tr', {}, [
+                el('td', { className: 'truncate max-w-[10rem]' }, o.host || '—'),
+                el('td', { className: 'tabular-nums' }, o.method || '—'),
+                el('td', { className: 'text-right tabular-nums' }, String(o.postWindowCallCount ?? 0)),
+            ]));
+        }
+    }
+
+    const delayBody = $('#delay-tbody');
+    delayBody.innerHTML = '';
+    if (!delays.length) {
+        delayBody.appendChild(el('tr', {}, [
+            el('td', { colspan: '4', className: 'text-center text-slate-500 dark:text-slate-400 py-3 text-xs' },
+                'No delay observations yet.'),
+        ]));
+    } else {
+        for (const o of delays.slice(0, 20)) {
+            delayBody.appendChild(el('tr', {}, [
+                el('td', { className: 'font-medium' }, o.ruleName || '—'),
+                el('td', { className: 'text-right tabular-nums' }, `${o.injectedDelayMs} ms`),
+                el('td', { className: 'text-right tabular-nums' }, `${o.observedWaitMs} ms`),
+                el('td', {}, o.completedSuccessfully ? '✓' : '✗'),
+            ]));
+        }
+    }
 }
 
 function renderEvents(payload) {
