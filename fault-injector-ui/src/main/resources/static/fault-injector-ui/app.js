@@ -275,7 +275,7 @@ function renderResilience(res) {
     } else {
         for (const o of retries.slice(0, 20)) {
             retryBody.appendChild(el('tr', {}, [
-                el('td', { className: 'font-medium' }, o.ruleName || '—'),
+                el('td', { className: 'font-medium whitespace-nowrap' }, o.ruleName || '—'),
                 el('td', { className: 'truncate max-w-[14rem] font-mono text-xs' },
                     `${o.method} ${o.host}${o.urlPath}`),
                 el('td', { className: 'text-right tabular-nums' }, String(o.observedRetries ?? 0)),
@@ -310,7 +310,7 @@ function renderResilience(res) {
     } else {
         for (const o of delays.slice(0, 20)) {
             delayBody.appendChild(el('tr', {}, [
-                el('td', { className: 'font-medium' }, o.ruleName || '—'),
+                el('td', { className: 'font-medium whitespace-nowrap' }, o.ruleName || '—'),
                 el('td', { className: 'text-right tabular-nums' }, `${o.injectedDelayMs} ms`),
                 el('td', { className: 'text-right tabular-nums' }, `${o.observedWaitMs} ms`),
                 el('td', {}, o.completedSuccessfully ? '✓' : '✗'),
