@@ -61,7 +61,24 @@ public class FaultInjectionResilienceTelemetry {
     // ----- hooks (filled in by Tasks 5-7) -----
 
     public void observeOutbound(HttpMethod method, URI uri, FaultDecision decision) {
-        // Implemented in Tasks 5 and 6.
+        long now = clock.millis();
+        TargetKey key = TargetKey.fromOutbound(method, uri);
+        boolean errorFired = decision != null && decision.hasError();
+
+        finalizeExpired(now);
+
+        if (errorFired) {
+            String rule = decision.ruleName();
+            OpenRetry prev = openRetries.put(key, new OpenRetry(rule, key, now));
+            if (prev != null) {
+                appendBounded(finalizedRetries, snapshotOpenRetry(prev));
+            }
+        } else {
+            OpenRetry open = openRetries.get(key);
+            if (open != null && now - open.startEpochMs <= retryWindowMs) {
+                open.depth.incrementAndGet();
+            }
+        }
     }
 
     public void noteObservedDelay(
@@ -104,7 +121,24 @@ public class FaultInjectionResilienceTelemetry {
     // ----- internals -----
 
     private void finalizeExpired(long now) {
-        // Implemented incrementally in Tasks 5 and 6.
+        openRetries.forEach((k, v) -> {
+            if (now - v.startEpochMs > retryWindowMs && openRetries.remove(k, v)) {
+                appendBounded(finalizedRetries, snapshotOpenRetry(v));
+            }
+        });
+    }
+
+    private RetryObservation snapshotOpenRetry(OpenRetry o) {
+        return new RetryObservation(
+                o.ruleName, o.key.host(), o.key.method(), o.key.urlPath(),
+                o.startEpochMs, retryWindowMs, o.depth.get());
+    }
+
+    private <T> void appendBounded(ConcurrentLinkedDeque<T> deque, T value) {
+        deque.addLast(value);
+        while (deque.size() > bufferSize) {
+            deque.pollFirst();
+        }
     }
 
     static final class OpenRetry {
