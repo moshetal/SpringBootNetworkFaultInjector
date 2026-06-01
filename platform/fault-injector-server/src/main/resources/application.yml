@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: fault-injector-server
+  datasource:
+    url: jdbc:postgresql://localhost:5432/faultinjector
+    username: faultinjector
+    password: faultinjector
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+
+fault:
+  injection:
+    server:
+      heartbeat-ttl-ms: 45000
+      command-timeout-ms: 10000
+      telemetry-retention-days: 7
+      console:
+        enabled: true
+        path: /console
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.mta.faultinjector.server: INFO

@@ -76,6 +76,31 @@ public final class OutboundFaultUriExclusion {
             String escaped = Pattern.quote(uiPath);
             out.add(".*" + escaped + "(/|\\?|$).*");
         }
+        if (properties.getAgent().isEnabled()) {
+            out.addAll(agentServerPatterns());
+        }
+        return out;
+    }
+
+    private List<String> agentServerPatterns() {
+        List<String> out = new ArrayList<>();
+        String serverUrl = properties.getAgent().getServerUrl();
+        if (serverUrl == null || serverUrl.isBlank()) {
+            return out;
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(serverUrl.trim());
+            String host = uri.getHost();
+            if (host != null && !host.isBlank()) {
+                String hostEsc = Pattern.quote(host);
+                int port = uri.getPort();
+                String portPart = port > 0 ? ":" + port : "";
+                out.add(".*" + hostEsc + portPart + "(/|\\?|$).*");
+                out.add(".*" + hostEsc + portPart + "/ws(/|\\?|$).*");
+            }
+        } catch (IllegalArgumentException ignored) {
+            // Skip malformed agent server URL.
+        }
         return out;
     }
 

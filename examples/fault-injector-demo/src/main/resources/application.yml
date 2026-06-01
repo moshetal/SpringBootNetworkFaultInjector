@@ -1,0 +1,43 @@
+server:
+  port: 8080
+
+spring:
+  profiles:
+    default: billing
+
+demo:
+  upstream-base: http://localhost:8080/upstream
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,faultinjector
+  endpoint:
+    faultinjector:
+      enabled: true
+
+fault:
+  injection:
+    enabled: true
+
+    ui:
+      enabled: true
+      path: /fault-injector
+
+    agent:
+      enabled: ${FAULT_INJECTION_AGENT_ENABLED:false}
+      server-url: ${FAULT_INJECTION_AGENT_SERVER_URL:ws://localhost:8080/ws}
+      instance-id: ${FAULT_INJECTION_AGENT_INSTANCE_ID:}
+
+    defaults:
+      delay-ms: 100
+      error-status: 503
+      error-message: "Injected by fault-injector defaults"
+      mode: PROBABILITY
+      probability: 1.0
+      every-n: 0
+
+logging:
+  level:
+    com.mta.faultinjection: INFO
