@@ -2,6 +2,8 @@
 
 Inject latency and errors into outbound HTTP calls (`RestTemplate`, `RestClient`, `WebClient`) for chaos and resiliency testing. Configure rules in YAML, tune them at runtime via Actuator or a bundled UI, and optionally connect many services to a central control console.
 
+Project Document: https://mailmtaac.sharepoint.com/:w:/s/SpringBootNetworkFaultInjectorProject/IQBaUPhm4gCsRYkpETiksLdpAZKEJPTeiThQY-qTbrP0u-4?e=lUxNwn
+
 ## Features at a glance
 
 | Area | Capabilities |
