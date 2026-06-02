@@ -32,6 +32,8 @@ public final class FaultInjectorUiDtos {
         public String urlPattern;
         public List<String> methods;
         public String fault;
+        /** Only used when {@code fault} is {@code "NETWORK"}. */
+        public String networkFaultType;
         public String mode;
         public Double probability;
         public Integer everyN;

@@ -52,6 +52,7 @@ public class FaultInjectionActuatorService {
             view.put(FaultInjectorViewJsonKeys.EVERY_N, rule.getEveryN());
             view.put(FaultInjectorViewJsonKeys.DELAY_MS, rule.getDelayMs());
             view.put(FaultInjectorViewJsonKeys.ERROR_STATUS, rule.getErrorStatus());
+            view.put(FaultInjectorViewJsonKeys.NETWORK_FAULT_TYPE, rule.getNetworkFaultType());
             RuleMetrics rm = rule.getName() != null ? metrics.get(rule.getName()) : null;
             view.put(FaultInjectorViewJsonKeys.MATCH_COUNT, rm != null ? rm.matchCount() : 0L);
             view.put(FaultInjectorViewJsonKeys.TRIGGER_COUNT, rm != null ? rm.triggerCount() : 0L);

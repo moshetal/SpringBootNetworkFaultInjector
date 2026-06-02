@@ -25,6 +25,7 @@ public final class FaultInjectorViewJsonKeys {
     public static final String DELAY_MS = "delayMs";
     public static final String ERROR_STATUS = "errorStatus";
     public static final String ERROR_MESSAGE = "errorMessage";
+    public static final String NETWORK_FAULT_TYPE = "networkFaultType";
     public static final String MATCH_COUNT = "matchCount";
     public static final String TRIGGER_COUNT = "triggerCount";
     public static final String STATUS = "status";

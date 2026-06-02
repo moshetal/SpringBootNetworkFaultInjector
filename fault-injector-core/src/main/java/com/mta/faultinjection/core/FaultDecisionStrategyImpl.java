@@ -172,6 +172,20 @@ public class FaultDecisionStrategyImpl implements FaultDecisionStrategy {
             case BOTH:
                 return FaultDecision.delayThenError(Duration.ofMillis(Math.max(0L, delayMs)), status, message)
                         .withRuleName(rule.getName());
+            case NETWORK: {
+                NetworkFaultType nft = rule.getNetworkFaultType() != null
+                        ? rule.getNetworkFaultType()
+                        : NetworkFaultType.CONNECTION_REFUSED;
+                // Timeout variants sleep before throwing to realistically simulate
+                // a connection or read that hangs then expires.
+                boolean isTimeout = nft == NetworkFaultType.CONNECTION_TIMEOUT
+                        || nft == NetworkFaultType.READ_TIMEOUT;
+                if (isTimeout && delayMs > 0) {
+                    return FaultDecision.delayThenNetworkFault(Duration.ofMillis(delayMs), nft)
+                            .withRuleName(rule.getName());
+                }
+                return FaultDecision.networkFault(nft).withRuleName(rule.getName());
+            }
             default:
                 return FaultDecision.pass();
         }

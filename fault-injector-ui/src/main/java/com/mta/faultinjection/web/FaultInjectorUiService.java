@@ -8,6 +8,7 @@ import com.mta.faultinjection.core.FaultDecisionStrategy;
 import com.mta.faultinjection.core.FaultDecisionStrategyImpl;
 import com.mta.faultinjection.core.FaultDecisionStrategyImpl.RuleMetrics;
 import com.mta.faultinjection.core.FaultType;
+import com.mta.faultinjection.core.NetworkFaultType;
 import com.mta.faultinjection.core.TriggerMode;
 import com.mta.faultinjection.telemetry.FaultInjectionEvent;
 import com.mta.faultinjection.telemetry.FaultInjectionResilienceTelemetry;
@@ -413,6 +414,9 @@ public class FaultInjectorUiService {
         } else if (creating && rule.getFault() == null) {
             rule.setFault(FaultType.DELAY);
         }
+        if (dto.networkFaultType != null) {
+            rule.setNetworkFaultType(parseEnum(NetworkFaultType.class, "networkFaultType", dto.networkFaultType));
+        }
         if (dto.mode != null) {
             rule.setMode(parseEnum(TriggerMode.class, "mode", dto.mode));
         }
@@ -462,6 +466,7 @@ public class FaultInjectorUiService {
         view.put(FaultInjectorViewJsonKeys.DELAY_MS, rule.getDelayMs());
         view.put(FaultInjectorViewJsonKeys.ERROR_STATUS, rule.getErrorStatus());
         view.put(FaultInjectorViewJsonKeys.ERROR_MESSAGE, rule.getErrorMessage());
+        view.put(FaultInjectorViewJsonKeys.NETWORK_FAULT_TYPE, rule.getNetworkFaultType());
         if (strategy instanceof FaultDecisionStrategyImpl impl && rule.getName() != null) {
             RuleMetrics m = impl.metricsSnapshot().get(rule.getName());
             view.put(FaultInjectorViewJsonKeys.MATCH_COUNT, m != null ? m.matchCount() : 0L);
@@ -697,6 +702,9 @@ public class FaultInjectorUiService {
         }
         if (rule.getErrorMessage() != null) {
             out.put("error-message", rule.getErrorMessage());
+        }
+        if (rule.getNetworkFaultType() != null) {
+            out.put("network-fault-type", rule.getNetworkFaultType().name());
         }
         return out;
     }

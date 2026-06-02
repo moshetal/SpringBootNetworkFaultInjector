@@ -1,6 +1,7 @@
 package com.mta.faultinjection.config;
 
 import com.mta.faultinjection.core.FaultType;
+import com.mta.faultinjection.core.NetworkFaultType;
 import com.mta.faultinjection.core.TriggerMode;
 import java.util.Collections;
 import java.util.HashSet;
@@ -113,6 +114,17 @@ public class FaultInjectionProperties {
 
         /** Overrides {@link Defaults#getErrorMessage()} when set. */
         private String errorMessage;
+
+        /**
+         * The specific network failure to simulate when {@link #fault} is
+         * {@link FaultType#NETWORK}.  Defaults to
+         * {@link NetworkFaultType#CONNECTION_REFUSED} when unset.
+         * <p>
+         * Timeout variants ({@link NetworkFaultType#CONNECTION_TIMEOUT},
+         * {@link NetworkFaultType#READ_TIMEOUT}) use the rule's {@code delayMs}
+         * as the sleep duration before throwing.
+         */
+        private NetworkFaultType networkFaultType;
 
         /** Convenience: null-safe view of matched methods. */
         public Set<HttpMethod> safeMethods() {

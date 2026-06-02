@@ -2,7 +2,9 @@ package com.mta.faultinjection.interceptor;
 
 import com.mta.faultinjection.core.FaultDecision;
 import com.mta.faultinjection.core.FaultDecisionStrategy;
+import com.mta.faultinjection.network.NetworkFaultSimulator;
 import com.mta.faultinjection.telemetry.FaultInjectionResilienceTelemetry;
+import java.net.URI;
 import java.time.Duration;
 import java.util.Objects;
 import org.springframework.http.HttpStatus;
@@ -47,6 +49,14 @@ public class FaultInjectionFilter implements ExchangeFilterFunction {
         }
 
         Mono<Long> gate = decision.hasDelay() ? Mono.delay(decision.delay()) : Mono.just(0L);
+
+        // Network faults emit an IOException subclass into the reactive stream,
+        // simulating the exception a real client would see from the OS/network.
+        if (decision.hasNetworkFault()) {
+            URI url = request.url();
+            return gate.then(Mono.error(() -> NetworkFaultSimulator.buildException(decision.networkFaultType(), url)));
+        }
+
         Mono<ClientResponse> body = decision.hasError()
                 ? gate.then(Mono.fromSupplier(() -> syntheticError(decision)))
                 : gate.then(next.exchange(request));

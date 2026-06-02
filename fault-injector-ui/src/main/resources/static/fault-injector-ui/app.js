@@ -178,6 +178,9 @@ function renderRules(rules) {
     for (const rule of rules) {
         const pills = [];
         if (rule.fault) pills.push(el('span', { className: `rule-pill ${rule.fault.toLowerCase()}` }, rule.fault));
+        if (rule.fault === 'NETWORK' && rule.networkFaultType) {
+            pills.push(el('span', { className: 'rule-pill network-sub' }, rule.networkFaultType.replace(/_/g, ' ')));
+        }
         if (rule.mode) pills.push(el('span', { className: 'rule-pill mode' }, rule.mode));
 
         const meta = [];
@@ -595,24 +598,27 @@ function openRuleModal(rule) {
     // Disable name field when editing.
     form.elements.name.disabled = !!rule;
     if (rule) {
-        form.elements.name.value         = rule.name ?? '';
-        form.elements.ruleEnabled.checked = rule.enabled !== false;
-        form.elements.fault.value        = rule.fault ?? 'DELAY';
-        form.elements.mode.value         = rule.mode ?? '';
-        form.elements.hostPattern.value  = rule.hostPattern ?? '';
-        form.elements.urlPattern.value   = rule.urlPattern ?? '';
-        form.elements.methods.value      = (rule.methods || []).join(', ');
-        form.elements.probability.value  = rule.probability ?? 0;
-        form.elements.everyN.value       = rule.everyN ?? '';
-        form.elements.delayMs.value      = rule.delayMs ?? '';
-        form.elements.errorStatus.value  = rule.errorStatus ?? '';
-        form.elements.errorMessage.value = rule.errorMessage ?? '';
+        form.elements.name.value              = rule.name ?? '';
+        form.elements.ruleEnabled.checked      = rule.enabled !== false;
+        form.elements.fault.value             = rule.fault ?? 'DELAY';
+        form.elements.networkFaultType.value  = rule.networkFaultType ?? 'CONNECTION_REFUSED';
+        form.elements.mode.value              = rule.mode ?? '';
+        form.elements.hostPattern.value       = rule.hostPattern ?? '';
+        form.elements.urlPattern.value        = rule.urlPattern ?? '';
+        form.elements.methods.value           = (rule.methods || []).join(', ');
+        form.elements.probability.value       = rule.probability ?? 0;
+        form.elements.everyN.value            = rule.everyN ?? '';
+        form.elements.delayMs.value           = rule.delayMs ?? '';
+        form.elements.errorStatus.value       = rule.errorStatus ?? '';
+        form.elements.errorMessage.value      = rule.errorMessage ?? '';
     } else {
-        form.elements.ruleEnabled.checked = true;
-        form.elements.fault.value       = 'DELAY';
-        form.elements.probability.value = 0;
+        form.elements.ruleEnabled.checked     = true;
+        form.elements.fault.value             = 'DELAY';
+        form.elements.networkFaultType.value  = 'CONNECTION_REFUSED';
+        form.elements.probability.value       = 0;
     }
     syncProbabilityDisplay();
+    syncNetworkFaultTypeVisibility();
     $('#rule-modal-delete').classList.toggle('hidden', !rule);
     $('#rule-modal').classList.remove('hidden');
 }
@@ -628,21 +634,28 @@ function syncProbabilityDisplay() {
     $('#prob-display').textContent = v.toFixed(2);
 }
 
+function syncNetworkFaultTypeVisibility() {
+    const fault = $('#rule-form').elements.fault.value;
+    $('#network-fault-type-row').style.display = fault === 'NETWORK' ? '' : 'none';
+}
+
 function readRuleForm() {
     const f = $('#rule-form').elements;
+    const fault = f.fault.value || null;
     const dto = {
-        name:        f.name.value.trim() || null,
-        enabled:     f.ruleEnabled.checked,
-        fault:       f.fault.value || null,
-        mode:        f.mode.value || null,
-        hostPattern: f.hostPattern.value.trim() || null,
-        urlPattern:  f.urlPattern.value.trim() || null,
-        methods:     f.methods.value.split(',').map(s => s.trim()).filter(Boolean),
-        probability: parseFloat(f.probability.value),
-        everyN:      f.everyN.value === '' ? null : parseInt(f.everyN.value, 10),
-        delayMs:     f.delayMs.value === '' ? null : parseInt(f.delayMs.value, 10),
-        errorStatus: f.errorStatus.value === '' ? null : parseInt(f.errorStatus.value, 10),
-        errorMessage: f.errorMessage.value || null,
+        name:             f.name.value.trim() || null,
+        enabled:          f.ruleEnabled.checked,
+        fault,
+        networkFaultType: fault === 'NETWORK' ? (f.networkFaultType.value || 'CONNECTION_REFUSED') : null,
+        mode:             f.mode.value || null,
+        hostPattern:      f.hostPattern.value.trim() || null,
+        urlPattern:       f.urlPattern.value.trim() || null,
+        methods:          f.methods.value.split(',').map(s => s.trim()).filter(Boolean),
+        probability:      parseFloat(f.probability.value),
+        everyN:           f.everyN.value === '' ? null : parseInt(f.everyN.value, 10),
+        delayMs:          f.delayMs.value === '' ? null : parseInt(f.delayMs.value, 10),
+        errorStatus:      f.errorStatus.value === '' ? null : parseInt(f.errorStatus.value, 10),
+        errorMessage:     f.errorMessage.value || null,
     };
     if (Number.isNaN(dto.probability)) dto.probability = null;
     if (!dto.methods.length) dto.methods = null;
@@ -800,6 +813,7 @@ function wireUp() {
     $('#rule-modal-delete').addEventListener('click', () => void deleteCurrentRule());
     $('#rule-form').addEventListener('submit', submitRuleForm);
     $('#rule-form').elements.probability.addEventListener('input', syncProbabilityDisplay);
+    $('#fault-type-select').addEventListener('change', syncNetworkFaultTypeVisibility);
 
     $('#edit-defaults-btn').addEventListener('click', openDefaultsModal);
     $('#defaults-form').addEventListener('submit', submitDefaultsForm);

@@ -2,6 +2,7 @@ package com.mta.faultinjection.interceptor;
 
 import com.mta.faultinjection.core.FaultDecision;
 import com.mta.faultinjection.core.FaultDecisionStrategy;
+import com.mta.faultinjection.network.NetworkFaultSimulator;
 import com.mta.faultinjection.telemetry.FaultInjectionResilienceTelemetry;
 import com.mta.faultinjection.util.Sleeper;
 import java.io.IOException;
@@ -58,6 +59,12 @@ public class FaultInjectionInterceptor implements ClientHttpRequestInterceptor {
         try {
             if (decision.hasDelay()) {
                 sleepOrInterrupt(decision.delay().toMillis());
+            }
+            if (decision.hasNetworkFault()) {
+                // Throw the IOException subclass that matches the configured fault type.
+                // The request is never forwarded — the caller sees an exception identical
+                // to what a real network failure would produce.
+                throw NetworkFaultSimulator.buildException(decision.networkFaultType(), request.getURI());
             }
             if (decision.hasError()) {
                 completed = true;

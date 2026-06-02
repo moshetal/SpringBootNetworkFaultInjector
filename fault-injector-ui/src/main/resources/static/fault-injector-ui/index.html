@@ -278,7 +278,20 @@
                         <li><code>DELAY</code> &mdash; sleep for <code>delayMs</code>, then proceed.</li>
                         <li><code>ERROR</code> &mdash; short-circuit with synthetic <code>errorStatus</code>.</li>
                         <li><code>BOTH</code> &mdash; delay, then short-circuit with the error.</li>
+                        <li><code>NETWORK</code> &mdash; throw a network-level <code>IOException</code> without forwarding the request. The specific exception is set by <strong>Network fault type</strong>.</li>
                     </ul>
+                </div>
+
+                <div>
+                    <h3 class="font-semibold mb-1">Network fault types</h3>
+                    <ul class="list-disc pl-5 space-y-1 text-slate-600 dark:text-slate-300">
+                        <li><code>CONNECTION_REFUSED</code> &mdash; throws <code>ConnectException</code> immediately. Simulates a server that is down or not listening.</li>
+                        <li><code>CONNECTION_TIMEOUT</code> &mdash; sleeps for <code>delayMs</code>, then throws <code>SocketTimeoutException</code>. Simulates a TCP handshake that never completes.</li>
+                        <li><code>READ_TIMEOUT</code> &mdash; sleeps for <code>delayMs</code>, then throws <code>SocketTimeoutException</code>. Simulates a server that accepts the connection but never responds.</li>
+                        <li><code>CONNECTION_RESET</code> &mdash; throws <code>SocketException("Connection reset")</code> immediately. Simulates a crashed or forcibly-closed server mid-conversation.</li>
+                        <li><code>DNS_FAILURE</code> &mdash; throws <code>UnknownHostException</code> immediately. Simulates a DNS outage or misconfigured hostname.</li>
+                    </ul>
+                    <p class="mt-2 text-slate-500 dark:text-slate-400 text-xs">Timeout types use <code>delayMs</code> as the wait before throwing. Set <code>delayMs</code> to match your HTTP client's configured timeout to trigger client-side timeout handling.</p>
                 </div>
 
                 <div>
@@ -336,8 +349,19 @@ curl -X POST ${HOST}/fault-injector/api/metrics/reset \
                     </div>
                     <label class="form-field">
                         <span>Fault type</span>
-                        <select name="fault">
+                        <select name="fault" id="fault-type-select">
                             <option>DELAY</option><option>ERROR</option><option>BOTH</option>
+                            <option>NETWORK</option>
+                        </select>
+                    </label>
+                    <label class="form-field" id="network-fault-type-row" style="display:none">
+                        <span>Network fault type</span>
+                        <select name="networkFaultType">
+                            <option value="CONNECTION_REFUSED">CONNECTION_REFUSED — TCP connect rejected immediately</option>
+                            <option value="CONNECTION_TIMEOUT">CONNECTION_TIMEOUT — handshake hangs then times out (uses delayMs)</option>
+                            <option value="READ_TIMEOUT">READ_TIMEOUT — request sent, response never arrives (uses delayMs)</option>
+                            <option value="CONNECTION_RESET">CONNECTION_RESET — TCP RST mid-conversation</option>
+                            <option value="DNS_FAILURE">DNS_FAILURE — hostname cannot be resolved</option>
                         </select>
                     </label>
                     <label class="form-field">
