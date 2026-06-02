@@ -39,6 +39,9 @@ public class FaultInjectionProperties {
     /** Settings for the bundled web UI (gated by {@code fault.injection.ui.enabled}). */
     private Ui ui = new Ui();
 
+    /** Optional cluster agent that connects outbound to the control server. */
+    private Agent agent = new Agent();
+
     /**
      * When {@code true}, outbound requests whose URL matches built-in or configured
      * patterns (e.g. actuator fault endpoint, UI prefix) never receive injected faults.
@@ -185,5 +188,27 @@ public class FaultInjectionProperties {
             /** Cap on the bounded ring buffer holding finalized observations per metric. */
             private int observationBufferSize = 100;
         }
+    }
+
+    /** Settings for the optional cluster control-plane agent. */
+    @Data
+    public static class Agent {
+        /** Master switch; default off so library users are unaffected. */
+        private boolean enabled = false;
+
+        /** WebSocket URL of the control server (e.g. {@code ws://host:8080/ws}). */
+        private String serverUrl = "ws://localhost:8080/ws";
+
+        /** Logical service name reported to the server. */
+        private String serviceName = "";
+
+        /** Unique instance id (pod name, hostname, etc.). */
+        private String instanceId = "";
+
+        /** How often to push telemetry snapshots to the server. */
+        private int telemetryIntervalMs = 2000;
+
+        /** Delay before reconnecting after a disconnect. */
+        private int reconnectDelayMs = 5000;
     }
 }

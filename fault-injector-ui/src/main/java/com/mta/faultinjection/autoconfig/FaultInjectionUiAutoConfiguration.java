@@ -6,6 +6,7 @@ import com.mta.faultinjection.core.FaultDecisionStrategy;
 import com.mta.faultinjection.telemetry.FaultInjectionResilienceTelemetry;
 import com.mta.faultinjection.telemetry.FaultInjectionTelemetry;
 import com.mta.faultinjection.web.FaultInjectorLocalhostOnlyFilter;
+import com.mta.faultinjection.web.FaultInjectorControlFacade;
 import com.mta.faultinjection.web.FaultInjectorUiController;
 import com.mta.faultinjection.web.FaultInjectorUiResourceConfig;
 import com.mta.faultinjection.web.FaultInjectorUiService;
@@ -61,7 +62,7 @@ public class FaultInjectionUiAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(FaultInjectorControlFacade.class)
     public FaultInjectorUiService faultInjectorUiService(
             FaultInjectionProperties properties,
             FaultDecisionStrategy strategy,
@@ -73,7 +74,7 @@ public class FaultInjectionUiAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public FaultInjectorUiController faultInjectorUiController(FaultInjectorUiService uiService) {
+    public FaultInjectorUiController faultInjectorUiController(FaultInjectorControlFacade uiService) {
         return new FaultInjectorUiController(uiService);
     }
 
