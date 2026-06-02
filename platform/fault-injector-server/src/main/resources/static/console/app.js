@@ -17,6 +17,9 @@ const state = {
     chart: null,
     pollTimer: null,
     pollSuspended: false,
+    stomp: null,
+    stompConnected: false,
+    serviceSub: null,
 };
 
 function buildUrl(path) {
@@ -199,7 +202,7 @@ function renderOverview(rows) {
         tbody.appendChild(el('tr', {}, [
             el('td', {}, [el('button', {
                 className: 'text-indigo-600 hover:underline font-medium',
-                onclick: () => { state.serviceName = r.serviceName; $('#service-select').value = r.serviceName; loadInstances().then(refreshAll); selectTab('config'); },
+                onclick: () => { state.serviceName = r.serviceName; $('#service-select').value = r.serviceName; loadInstances().then(() => { subscribeService(); return refreshAll(); }); selectTab('config'); },
             }, r.serviceName)]),
             el('td', { className: 'text-right tabular-nums' }, String(r.instanceCount)),
             el('td', { className: 'text-right tabular-nums' }, fmtNumber(r.matchCount)),
@@ -284,6 +287,15 @@ function renderRules(rules) {
             onclick: (ev) => ev.stopPropagation(),
         }, [ruleToggle]);
 
+        const deleteBtn = el('button', {
+            type: 'button',
+            className: 'rule-delete-btn',
+            title: 'Delete rule',
+            ariaLabel: `Delete rule ${rule.name || '(unnamed)'}`,
+            onclick: (ev) => { ev.stopPropagation(); openDeleteConfirm(rule); },
+        });
+        deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/><path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/><path d="M10 11v6M14 11v6"/></svg>';
+
         const row = el('div', {
             className: 'rule-row' + (rule.enabled ? '' : ' disabled'),
             onclick: () => openRuleModal(rule),
@@ -298,6 +310,7 @@ function renderRules(rules) {
                 el('div', {}, `matches: ${rule.matchCount ?? 0}`),
                 el('div', {}, `triggers: ${rule.triggerCount ?? 0}`),
             ]),
+            deleteBtn,
         ]);
         list.appendChild(row);
     }
@@ -699,7 +712,6 @@ function openRuleModal(rule) {
         form.elements.probability.value = 0;
     }
     syncProbabilityDisplay();
-    $('#rule-modal-delete').classList.toggle('hidden', !rule);
     $('#rule-modal').classList.remove('hidden');
 }
 
@@ -759,13 +771,38 @@ async function submitRuleForm(e) {
     }
 }
 
-async function deleteCurrentRule() {
-    if (!editingRuleName) return;
-    if (!confirm(`Delete rule "${editingRuleName}"?`)) return;
+// ---------------------------------------------------------------------------
+// Delete confirmation modal
+// ---------------------------------------------------------------------------
+
+let pendingDeleteName = null;
+
+function openDeleteConfirm(rule) {
+    const name = rule?.name;
+    if (!name) {
+        toast('Rule has no name; cannot delete.', 'error');
+        return;
+    }
+    pendingDeleteName = name;
+    state.pollSuspended = true;
+    $('#confirm-delete-name').textContent = name;
+    $('#confirm-delete-modal').classList.remove('hidden');
+}
+
+function closeDeleteConfirm() {
+    $('#confirm-delete-modal').classList.add('hidden');
+    pendingDeleteName = null;
+    // Only resume polling if no other modal is still open.
+    if ($('#rule-modal').classList.contains('hidden')) state.pollSuspended = false;
+}
+
+async function confirmDelete() {
+    const name = pendingDeleteName;
+    if (!name) return;
     try {
-        await api('DELETE', `/rules/${encodeURIComponent(editingRuleName)}`);
-        toast(`Deleted "${editingRuleName}".`);
-        closeRuleModal();
+        await api('DELETE', `/rules/${encodeURIComponent(name)}`);
+        closeDeleteConfirm();
+        toast(`Deleted "${name}".`);
         await refreshAll();
     } catch (err) {
         toast(err.message, 'error');
@@ -861,11 +898,74 @@ async function refreshAll() {
     }
 }
 
+/**
+ * Poll only when push can't cover the view: the socket is down, or a single
+ * instance is scoped (push carries the all-instance aggregate). When connected
+ * and scoped to "all", the WebSocket feed keeps everything current.
+ */
+function shouldPoll() {
+    return !state.stompConnected || state.scope !== 'all';
+}
+
 function startPolling() {
     if (state.pollTimer) clearInterval(state.pollTimer);
     state.pollTimer = setInterval(() => {
-        if (!state.pollSuspended && !document.hidden) refreshAll();
+        if (!state.pollSuspended && !document.hidden && shouldPoll()) refreshAll();
     }, state.pollMs);
+}
+
+// ---------------------------------------------------------------------------
+// Live updates over WebSocket/STOMP (push). Falls back to polling on failure.
+// ---------------------------------------------------------------------------
+
+function applyServiceSnapshot(snap) {
+    if (!snap) return;
+    if (snap.config) renderConfig(snap.config);
+    if (snap.metrics) renderMetrics(snap.metrics);
+    if (snap.timeseries) renderTimeSeries(snap.timeseries);
+    if (snap.events) renderEvents(snap.events);
+}
+
+function subscribeService() {
+    const client = state.stomp;
+    if (!client || !state.stompConnected) return;
+    if (state.serviceSub) {
+        try { state.serviceSub.unsubscribe(); } catch (_) { /* ignore */ }
+        state.serviceSub = null;
+    }
+    if (!state.serviceName) return;
+    state.serviceSub = client.subscribe('/topic/services/' + state.serviceName, (msg) => {
+        if (state.pollSuspended) return;     // don't clobber an open modal/form
+        if (state.scope !== 'all') return;   // push is the all-instance aggregate
+        try { applyServiceSnapshot(JSON.parse(msg.body)); } catch (_) { /* ignore */ }
+    });
+}
+
+function connectLiveUpdates() {
+    if (typeof window.StompJs === 'undefined' || typeof window.SockJS === 'undefined') {
+        console.warn('[console] STOMP/SockJS unavailable; staying on polling.');
+        return;
+    }
+    const wsUrl = window.location.origin + '/ws';
+    const client = new window.StompJs.Client({
+        webSocketFactory: () => new window.SockJS(wsUrl),
+        reconnectDelay: 3000,
+        heartbeatIncoming: 10000,
+        heartbeatOutgoing: 10000,
+    });
+    client.onConnect = () => {
+        state.stompConnected = true;
+        client.subscribe('/topic/overview', (msg) => {
+            try { const rows = JSON.parse(msg.body); state.overview = rows; renderOverview(rows); }
+            catch (_) { /* ignore */ }
+        });
+        subscribeService();
+        refreshAll();      // one pull to fill in immediately on (re)connect
+    };
+    client.onWebSocketClose = () => { state.stompConnected = false; state.serviceSub = null; };
+    client.onStompError = (frame) => console.warn('[console] STOMP error:', frame.headers && frame.headers.message);
+    state.stomp = client;
+    client.activate();
 }
 
 // ---------------------------------------------------------------------------
@@ -886,11 +986,11 @@ function wireUp() {
         state.serviceName = ev.target.value;
         state.scope = 'all';
         await loadInstances();
+        subscribeService();
         await refreshAll();
     });
 
     $$('#rule-modal [data-modal-close]').forEach(b => b.addEventListener('click', closeRuleModal));
-    $('#rule-modal-delete').addEventListener('click', () => void deleteCurrentRule());
     $('#rule-form').addEventListener('submit', submitRuleForm);
     $('#rule-form').elements.probability.addEventListener('input', syncProbabilityDisplay);
 
@@ -899,9 +999,13 @@ function wireUp() {
     $('#defaults-form').elements.probability.addEventListener('input', syncDefaultsProbabilityDisplay);
     $$('[data-defaults-modal-close]').forEach(b => b.addEventListener('click', closeDefaultsModal));
 
+    $$('#confirm-delete-modal [data-confirm-close]').forEach(b => b.addEventListener('click', closeDeleteConfirm));
+    $('#confirm-delete-btn').addEventListener('click', () => void confirmDelete());
+
     document.addEventListener('keydown', e => {
         if (e.key !== 'Escape') return;
-        if (!$('#defaults-modal').classList.contains('hidden')) closeDefaultsModal();
+        if (!$('#confirm-delete-modal').classList.contains('hidden')) closeDeleteConfirm();
+        else if (!$('#defaults-modal').classList.contains('hidden')) closeDefaultsModal();
         else if (!$('#rule-modal').classList.contains('hidden')) closeRuleModal();
     });
 }
@@ -912,7 +1016,9 @@ async function boot() {
     await refreshOverview();
     await refreshAll();
     startPolling();
-    setInterval(() => { if (!document.hidden) refreshOverview(); }, 5000);
+    connectLiveUpdates();
+    // Overview is pushed live while connected; only poll it as a fallback.
+    setInterval(() => { if (!document.hidden && !state.stompConnected) refreshOverview(); }, 5000);
 }
 
 boot();

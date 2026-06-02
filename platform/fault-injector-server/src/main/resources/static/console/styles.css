@@ -267,6 +267,33 @@
     border: 1px solid transparent;
     white-space: nowrap;
 }
+/* per-row delete button */
+.rule-delete-btn {
+    flex-shrink: 0;
+    display: inline-grid;
+    place-items: center;
+    padding: 0.375rem;
+    border-radius: 0.375rem;
+    color: #9aa3b2;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+}
+.rule-delete-btn:hover {
+    color: #be123c;
+    background: rgba(244, 63, 94, 0.1);
+    border-color: rgba(244, 63, 94, 0.3);
+}
+.rule-delete-btn:focus-visible {
+    outline: 2px solid #f43f5e;
+    outline-offset: 2px;
+}
+@media (prefers-color-scheme: dark) {
+    .rule-delete-btn { color: #6b7385; }
+    .rule-delete-btn:hover { color: #fda4af; }
+}
+
 .rule-pill.delay { color: #b45309; border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.1); }
 .rule-pill.error { color: #be123c; border-color: rgba(244, 63, 94, 0.4); background: rgba(244, 63, 94, 0.1); }
 .rule-pill.both  { color: #a21caf; border-color: rgba(217, 70, 239, 0.4); background: rgba(217, 70, 239, 0.1); }

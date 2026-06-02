@@ -38,35 +38,26 @@ public class ConsoleController {
     private final CommandRouter commandRouter;
     private final ObjectMapper mapper;
     private final JdbcTemplate jdbc;
+    private final ConsoleSnapshotService snapshots;
 
     public ConsoleController(
             InstanceRegistry registry,
             TelemetryAggregator aggregator,
             CommandRouter commandRouter,
             ObjectMapper mapper,
-            JdbcTemplate jdbc) {
+            JdbcTemplate jdbc,
+            ConsoleSnapshotService snapshots) {
         this.registry = registry;
         this.aggregator = aggregator;
         this.commandRouter = commandRouter;
         this.mapper = mapper;
         this.jdbc = jdbc;
+        this.snapshots = snapshots;
     }
 
     @GetMapping("/overview")
     public List<Map<String, Object>> overview() {
-        List<Map<String, Object>> rows = new ArrayList<>();
-        for (String service : registry.serviceNames()) {
-            List<AgentInstance> insts = registry.findByService(service);
-            List<TelemetryBatch> batches = batches(service, "all", insts);
-            JsonNode metrics = aggregator.aggregateMetrics(batches);
-            rows.add(Map.of(
-                    "serviceName", service,
-                    "instanceCount", insts.size(),
-                    "matchCount", metrics.path("totals").path("matchCount").asLong(0),
-                    "triggerCount", metrics.path("totals").path("triggerCount").asLong(0),
-                    "resilienceSignals", resilienceCount(metrics)));
-        }
-        return rows;
+        return snapshots.overview();
     }
 
     @GetMapping("/services")
@@ -198,18 +189,6 @@ public class ConsoleController {
                 .map(AgentInstance::instanceId)
                 .toList();
         return aggregator.batchesForService(serviceName, scope, ids);
-    }
-
-    private List<TelemetryBatch> batches(String serviceName, String scope, List<AgentInstance> insts) {
-        List<String> ids = insts.stream().map(AgentInstance::instanceId).toList();
-        return aggregator.batchesForService(serviceName, scope, ids);
-    }
-
-    private static int resilienceCount(JsonNode metrics) {
-        JsonNode r = metrics.path("resilience");
-        return r.path("retryObservations").size()
-                + r.path("circuitBreakerObservations").size()
-                + r.path("delayObservations").size();
     }
 
     private String eventsCsv(List<TelemetryBatch> batches) {

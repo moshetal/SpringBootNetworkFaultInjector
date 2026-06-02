@@ -9,6 +9,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1.6.1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@stomp/stompjs@7.0.0/bundles/stomp.umd.min.js"></script>
     <link rel="stylesheet" href="./styles.css" />
 </head>
 <body class="h-full bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100 font-sans antialiased">
@@ -334,14 +336,6 @@ curl -X POST ${HOST}/fault-injector/api/metrics/reset \
         <div class="card w-full max-w-2xl pointer-events-auto">
             <div class="card-header flex items-center gap-2">
                 <h2 class="card-title flex-1 min-w-0" id="rule-modal-title">Add rule</h2>
-                <button type="button" id="rule-modal-delete" class="hidden p-2 rounded-md text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 border border-transparent hover:border-rose-500/30 shrink-0" aria-label="Delete rule" title="Delete rule">
-                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M3 6h18"/>
-                        <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/>
-                        <path d="M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
-                        <path d="M10 11v6M14 11v6"/>
-                    </svg>
-                </button>
                 <button type="button" class="p-2 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0" data-modal-close aria-label="Close">
                     <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
                 </button>
@@ -465,6 +459,39 @@ curl -X POST ${HOST}/fault-injector/api/metrics/reset \
                         <button type="button" data-defaults-modal-close class="px-4 py-2 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">Cancel</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============ Delete-rule confirmation modal ============ -->
+<div id="confirm-delete-modal" class="fixed inset-0 z-[60] hidden">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" data-confirm-close></div>
+    <div class="absolute inset-0 overflow-y-auto p-4 grid place-items-center pointer-events-none">
+        <div class="card w-full max-w-md pointer-events-auto">
+            <div class="card-header flex items-center gap-2">
+                <h2 class="card-title flex-1 min-w-0">Delete rule</h2>
+                <button type="button" class="p-2 rounded-md text-slate-500 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-700 shrink-0" data-confirm-close aria-label="Close">
+                    <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none"><path d="M6 6 L18 18 M18 6 L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <div class="card-body space-y-4 text-sm">
+                <div class="flex items-start gap-3">
+                    <span class="shrink-0 mt-0.5 text-rose-500">
+                        <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                            <path d="M12 9v4"/><path d="M12 17h.01"/>
+                        </svg>
+                    </span>
+                    <div class="space-y-1">
+                        <p>Are you sure you want to delete <strong id="confirm-delete-name" class="font-mono"></strong>?</p>
+                        <p class="text-rose-600 dark:text-rose-400 font-medium">This action is not reversible.</p>
+                    </div>
+                </div>
+                <div class="flex items-center justify-end gap-2 pt-1">
+                    <button type="button" data-confirm-close class="px-4 py-2 rounded-md text-sm font-medium border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700">Cancel</button>
+                    <button type="button" id="confirm-delete-btn" class="px-4 py-2 rounded-md text-sm font-medium bg-rose-600 hover:bg-rose-500 text-white shadow-sm">Delete</button>
+                </div>
             </div>
         </div>
     </div>

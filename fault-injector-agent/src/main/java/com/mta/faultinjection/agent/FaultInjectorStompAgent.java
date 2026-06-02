@@ -230,6 +230,11 @@ public class FaultInjectorStompAgent implements SmartLifecycle {
                     result.payload(),
                     result.error());
             s.send("/app/agent/command-ack", ack);
+            // Report fresh state right away so the console reflects the applied
+            // change immediately instead of waiting for the next periodic push.
+            if (result.success()) {
+                pushTelemetrySafe();
+            }
         }
     }
 }

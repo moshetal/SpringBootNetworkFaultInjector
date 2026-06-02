@@ -9,6 +9,7 @@ import com.mta.faultinjector.server.registry.InstanceRegistry;
 import com.mta.faultinjector.server.command.CommandRouter;
 import com.mta.faultinjector.server.persistence.TelemetryPersistenceService;
 import com.mta.faultinjector.server.telemetry.TelemetryAggregator;
+import com.mta.faultinjector.server.web.ConsoleBroadcaster;
 import java.security.Principal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,16 +29,19 @@ public class AgentStompController {
     private final TelemetryAggregator aggregator;
     private final CommandRouter commandRouter;
     private final TelemetryPersistenceService persistence;
+    private final ConsoleBroadcaster broadcaster;
 
     public AgentStompController(
             InstanceRegistry registry,
             TelemetryAggregator aggregator,
             CommandRouter commandRouter,
-            TelemetryPersistenceService persistence) {
+            TelemetryPersistenceService persistence,
+            ConsoleBroadcaster broadcaster) {
         this.registry = registry;
         this.aggregator = aggregator;
         this.commandRouter = commandRouter;
         this.persistence = persistence;
+        this.broadcaster = broadcaster;
     }
 
     @MessageMapping("/agent/register")
@@ -61,6 +65,8 @@ public class AgentStompController {
         aggregator.ingest(batch);
         registry.updateConfig(batch.instanceId(), batch.config());
         persistence.persistAsync(batch);
+        broadcaster.broadcastService(batch.serviceName());
+        broadcaster.broadcastOverview();
     }
 
     @MessageMapping("/agent/command-ack")
