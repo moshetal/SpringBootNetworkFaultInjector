@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
+import org.springframework.boot.context.properties.bind.BindException;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.context.properties.source.MapConfigurationPropertySource;
 import org.springframework.core.io.FileSystemResource;
@@ -19,14 +20,23 @@ public final class SidecarConfigLoader {
         }
         YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
         yaml.setResources(new FileSystemResource(configPath.toFile()));
-        Properties flat = yaml.getObject();
+        Properties flat;
+        try {
+            flat = yaml.getObject();
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException("config could not be parsed: " + configPath, e);
+        }
         if (flat == null) {
             throw new IllegalArgumentException("config could not be parsed: " + configPath);
         }
         MapConfigurationPropertySource source = new MapConfigurationPropertySource();
         flat.forEach((k, v) -> source.put(k.toString(), v));
-        return new Binder(source)
-                .bind("fault.injection", FaultInjectionProperties.class)
-                .orElseThrow(() -> new IllegalArgumentException("config missing fault.injection: " + configPath));
+        try {
+            return new Binder(source)
+                    .bind("fault.injection", FaultInjectionProperties.class)
+                    .orElseThrow(() -> new IllegalArgumentException("config missing fault.injection: " + configPath));
+        } catch (BindException e) {
+            throw new IllegalArgumentException("config bind failed: " + configPath, e);
+        }
     }
 }
