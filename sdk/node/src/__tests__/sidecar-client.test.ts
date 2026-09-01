@@ -1,50 +1,13 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
+import { MemoryTransport } from "./memory-transport.ts";
 import {
   DEFAULT_DECIDE_MS,
   DEFAULT_READY_MS,
   SidecarClient,
   type SidecarTransport,
 } from "../sidecar-client.ts";
-
-class MemoryTransport implements SidecarTransport {
-  readonly writes: string[] = [];
-  closed = false;
-  private readonly ee = new EventEmitter();
-
-  writeLine(line: string) {
-    this.writes.push(line);
-    const msg = JSON.parse(line);
-    if (msg.op === "decide") {
-      this.push({
-        id: msg.id,
-        instruction: "INJECT_DELAY",
-        delayMs: 50,
-        ruleName: "always-delay",
-      });
-    } else if (msg.op === "metrics") {
-      this.push({
-        id: msg.id,
-        rules: { "always-delay": { matchCount: 1, triggerCount: 1 } },
-      });
-    } else if (msg.op === "setEnabled" || msg.op === "shutdown") {
-      this.push({ id: msg.id, ok: true });
-    }
-  }
-
-  onLine(handler: (line: string) => void) {
-    this.ee.on("line", handler);
-  }
-
-  push(obj: unknown) {
-    this.ee.emit("line", JSON.stringify(obj));
-  }
-
-  async close() {
-    this.closed = true;
-  }
-}
 
 test("default timeout constants", () => {
   assert.equal(DEFAULT_DECIDE_MS, 2000);
