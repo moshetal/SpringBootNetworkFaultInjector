@@ -24,6 +24,7 @@
         <module>fault-injector-actuator</module>
         <module>fault-injector-ui</module>
         <module>fault-injector-agent</module>
+        <module>fault-injector-sidecar</module>
         <module>spring-boot-starter-fault-injector</module>
         <module>spring-boot-starter-fault-injector-agent</module>
     </modules>
