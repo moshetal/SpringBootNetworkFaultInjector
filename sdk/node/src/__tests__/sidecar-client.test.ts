@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import test from "node:test";
-import { SidecarClient, type SidecarTransport } from "../sidecar-client.ts";
+import {
+  DEFAULT_DECIDE_MS,
+  DEFAULT_READY_MS,
+  SidecarClient,
+  type SidecarTransport,
+} from "../sidecar-client.ts";
 
 class MemoryTransport implements SidecarTransport {
   readonly writes: string[] = [];
@@ -40,6 +45,27 @@ class MemoryTransport implements SidecarTransport {
     this.closed = true;
   }
 }
+
+test("default timeout constants", () => {
+  assert.equal(DEFAULT_DECIDE_MS, 2000);
+  assert.equal(DEFAULT_READY_MS, 15000);
+});
+
+test("waitUntilReady without args uses DEFAULT_READY_MS", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const transport: SidecarTransport = {
+    writeLine() {},
+    onLine() {},
+    async close() {},
+  };
+  const c = new SidecarClient(transport);
+  const readyPromise = c.waitUntilReady();
+  t.mock.timers.tick(DEFAULT_READY_MS - 1);
+  await Promise.resolve();
+  t.mock.timers.tick(1);
+  await assert.rejects(readyPromise, /readiness timed out/i);
+  t.mock.timers.reset();
+});
 
 test("decide returns delay decision after ready", async () => {
   const t = new MemoryTransport();

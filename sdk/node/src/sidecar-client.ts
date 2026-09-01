@@ -6,6 +6,9 @@ import type {
 
 export type { SidecarTransport } from "./types.js";
 
+export const DEFAULT_DECIDE_MS = 2000;
+export const DEFAULT_READY_MS = 15000;
+
 interface PendingRequest {
   resolve: (payload: Record<string, unknown>) => void;
   reject: (error: Error) => void;
@@ -24,14 +27,14 @@ export class SidecarClient {
     private readonly transport: SidecarTransport,
     options: { decideMs?: number } = {},
   ) {
-    this.decideMs = options.decideMs ?? 1000;
+    this.decideMs = options.decideMs ?? DEFAULT_DECIDE_MS;
     this.readyPromise = new Promise((resolve) => {
       this.markReady = resolve;
     });
     transport.onLine((line) => this.handleLine(line));
   }
 
-  waitUntilReady(readyMs = this.decideMs): Promise<void> {
+  waitUntilReady(readyMs = DEFAULT_READY_MS): Promise<void> {
     if (this.ready) {
       return Promise.resolve();
     }
