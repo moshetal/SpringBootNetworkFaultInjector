@@ -18,6 +18,11 @@ export class ChildProcessTransport implements SidecarTransport {
       stdio: ["pipe", "pipe", "pipe"],
     });
 
+    this.child.stdin.on("error", () => {
+      // A sidecar can exit between a request being prepared and written.
+      // Request timeouts provide the fail-open path; the pipe error must not
+      // become an uncaught EventEmitter error.
+    });
     this.child.stdout.setEncoding("utf8");
     this.child.stdout.on("data", (chunk: string) => this.handleStdout(chunk));
     this.child.stdout.on("end", () => this.flushStdout());
