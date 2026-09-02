@@ -9,8 +9,6 @@ demo-local: install-lib
 demo-cloud:
 	docker compose -f examples/docker/docker-compose.yml up --build
 
-demo-node: export JAVA_HOME := /opt/homebrew/opt/openjdk@17
-demo-node: export PATH := /opt/homebrew/opt/openjdk@17/bin:/opt/homebrew/bin:$(PATH)
 demo-node: install-lib
 	mvn -pl fault-injector-sidecar -am package -DskipTests
 	cd sdk/node && npm install && npm run build
