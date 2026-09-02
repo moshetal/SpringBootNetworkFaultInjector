@@ -1,0 +1,16 @@
+fault:
+  injection:
+    enabled: true
+    defaults:
+      delay-ms: 0
+      error-status: 503
+      error-message: Injected fault
+      mode: PROBABILITY
+      probability: 1.0
+    rules:
+      - name: smoke-delay
+        url-pattern: ".*127\\.0\\.0\\.1.*"
+        enabled: true
+        fault: DELAY
+        delay-ms: 80
+        probability: 1.0
