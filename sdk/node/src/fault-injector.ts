@@ -26,6 +26,7 @@ export class FaultInjector {
   static async start(options: StartOptions): Promise<FaultInjector> {
     let client = options.client;
     let startupFailure: Promise<never> | undefined;
+    let transport: ChildProcessTransport | undefined;
 
     if (!client) {
       const java = options.java ?? process.env.FAULT_INJECTOR_JAVA ?? "java";
@@ -40,7 +41,7 @@ export class FaultInjector {
         throw new Error(`Sidecar jar does not exist: ${jar}`);
       }
 
-      const transport = new ChildProcessTransport(java, [
+      transport = new ChildProcessTransport(java, [
         "-jar",
         jar,
         "--config",
@@ -55,7 +56,12 @@ export class FaultInjector {
     const ready = client.waitUntilReady(
       options.timeouts?.readyMs ?? DEFAULT_READY_MS,
     );
-    await (startupFailure ? Promise.race([ready, startupFailure]) : ready);
+    try {
+      await (startupFailure ? Promise.race([ready, startupFailure]) : ready);
+    } catch (error) {
+      await transport?.close();
+      throw error;
+    }
     return new FaultInjector(client);
   }
 

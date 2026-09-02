@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
 import { FaultInjector } from "../fault-injector.ts";
 import { SidecarClient } from "../sidecar-client.ts";
@@ -89,4 +90,51 @@ test("start reports stderr when the child exits before ready", async (t) => {
       }),
     /exited before ready[\s\S]*-jar/i,
   );
+});
+
+test("start closes a spawned transport when readiness times out", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "fault-injector-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const jar = join(directory, "sidecar.jar");
+  const java = join(directory, "fake-java");
+  const pidFile = join(directory, "pid");
+  await writeFile(jar, "");
+  await writeFile(
+    java,
+    `#!/bin/sh
+echo $$ > ${JSON.stringify(pidFile)}
+while :; do :; done
+`,
+  );
+  await chmod(java, 0o755);
+  t.after(async () => {
+    try {
+      process.kill(Number(await readFile(pidFile, "utf8")));
+    } catch {
+      // The expected close already terminated the child.
+    }
+  });
+
+  await assert.rejects(
+    () =>
+      FaultInjector.start({
+        configPath: "config.yaml",
+        jar,
+        java,
+        timeouts: { readyMs: 500 },
+      }),
+    /readiness timed out/i,
+  );
+
+  const pid = Number(await readFile(pidFile, "utf8"));
+  let running = true;
+  for (let attempt = 0; attempt < 50 && running; attempt += 1) {
+    try {
+      process.kill(pid, 0);
+      await delay(10);
+    } catch {
+      running = false;
+    }
+  }
+  assert.equal(running, false);
 });

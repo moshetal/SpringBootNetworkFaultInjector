@@ -17,25 +17,24 @@ export function patchFetch(
     let decision;
     try {
       decision = await client.decide(method, url);
+
+      if (
+        decision.instruction === "INJECT_DELAY" ||
+        decision.instruction === "INJECT_DELAY_AND_ERROR"
+      ) {
+        await sleep(decision.delayMs ?? 0);
+      }
+
+      if (
+        decision.instruction === "INJECT_ERROR" ||
+        decision.instruction === "INJECT_DELAY_AND_ERROR"
+      ) {
+        return new Response(decision.errorMessage ?? "", {
+          status: decision.errorStatus ?? 503,
+        });
+      }
     } catch (error) {
       console.warn("Fault injector decision failed; request will proceed", error);
-      return originalFetch.call(target, input, init);
-    }
-
-    if (
-      decision.instruction === "INJECT_DELAY" ||
-      decision.instruction === "INJECT_DELAY_AND_ERROR"
-    ) {
-      await sleep(decision.delayMs ?? 0);
-    }
-
-    if (
-      decision.instruction === "INJECT_ERROR" ||
-      decision.instruction === "INJECT_DELAY_AND_ERROR"
-    ) {
-      return new Response(decision.errorMessage ?? "", {
-        status: decision.errorStatus ?? 503,
-      });
     }
 
     return originalFetch.call(target, input, init);

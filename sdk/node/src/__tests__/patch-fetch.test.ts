@@ -113,6 +113,20 @@ test("a decision error warns and fails open", async (t) => {
   assert.equal(warn.mock.callCount(), 1);
 });
 
+test("an invalid injected response warns and fails open", async (t) => {
+  const warn = t.mock.method(console, "warn", () => {});
+  const { target, calls } = await started({
+    instruction: "INJECT_ERROR",
+    errorStatus: 999,
+  });
+
+  const response = await target.fetch("https://api.example.com");
+
+  assert.equal(await response.text(), "ok");
+  assert.equal(calls.length, 1);
+  assert.equal(warn.mock.callCount(), 1);
+});
+
 test("stop restores the original fetch even when shutdown fails", async () => {
   const transport = new MemoryTransport((message, memory) => {
     if (message.op === "shutdown") {
