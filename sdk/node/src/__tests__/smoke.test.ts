@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { FaultInjector } from "../fault-injector.ts";
+import { smokeTestSkipReason } from "./smoke-prerequisites.ts";
 
 const jar = fileURLToPath(
   new URL("../../sidecar/fault-injector-sidecar.jar", import.meta.url),
@@ -12,7 +12,7 @@ const configPath = fileURLToPath(new URL("./fixtures/smoke.yml", import.meta.url
 
 test(
   "real sidecar delays a local fetch and reports the trigger",
-  { skip: existsSync(jar) ? false : "sidecar jar has not been packaged" },
+  { skip: smokeTestSkipReason(jar) },
   async (t) => {
     let requestReceived = false;
     const server = createServer((_request, response) => {
