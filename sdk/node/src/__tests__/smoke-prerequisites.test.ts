@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { smokeTestSkipReason } from "./smoke-prerequisites.ts";
 
@@ -15,7 +16,7 @@ test("smokeTestSkipReason skips when java is unavailable", () => {
 
   try {
     assert.match(
-      smokeTestSkipReason(import.meta.filename),
+      smokeTestSkipReason(fileURLToPath(import.meta.url)),
       /^java is not available/,
     );
   } finally {
