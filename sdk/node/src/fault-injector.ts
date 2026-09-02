@@ -7,6 +7,7 @@ import {
   SidecarClient,
 } from "./sidecar-client.js";
 import { patchFetch as installFetchPatch } from "./patch-fetch.js";
+import { patchAxios as installAxiosPatch } from "./patch-axios.js";
 import type { MetricsSnapshot } from "./types.js";
 
 export interface StartOptions {
@@ -20,6 +21,7 @@ export interface StartOptions {
 
 export class FaultInjector {
   private restoreFetch?: () => void;
+  private restoreAxios?: () => void;
 
   private constructor(private readonly client: SidecarClient) {}
 
@@ -70,8 +72,9 @@ export class FaultInjector {
     this.restoreFetch = installFetchPatch(this.client, target);
   }
 
-  patchAxios(_instance: AxiosInstance): void {
-    throw new Error("patchAxios is not implemented");
+  patchAxios(instance: AxiosInstance): void {
+    this.restoreAxios?.();
+    this.restoreAxios = installAxiosPatch(this.client, instance);
   }
 
   metrics(): Promise<MetricsSnapshot> {
@@ -88,6 +91,8 @@ export class FaultInjector {
     } finally {
       this.restoreFetch?.();
       this.restoreFetch = undefined;
+      this.restoreAxios?.();
+      this.restoreAxios = undefined;
     }
   }
 }

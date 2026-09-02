@@ -23,7 +23,6 @@ test("start accepts a ready injected client and delegates control methods", asyn
     1,
   );
   await injector.setEnabled(false);
-  assert.throws(() => injector.patchAxios({} as never), /not implemented/i);
   await injector.stop();
   assert.equal(transport.closed, true);
 });
