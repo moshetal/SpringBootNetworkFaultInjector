@@ -7,8 +7,9 @@ export function patchFetch(
   const originalFetch = target.fetch;
 
   target.fetch = async (input, init) => {
-    const method =
-      init?.method ?? (input instanceof Request ? input.method : "GET");
+    const method = (
+      init?.method ?? (input instanceof Request ? input.method : "GET")
+    ).toUpperCase();
     const url =
       typeof input === "string" || input instanceof URL
         ? String(input)

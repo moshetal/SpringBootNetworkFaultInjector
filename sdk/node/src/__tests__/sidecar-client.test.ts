@@ -46,7 +46,9 @@ test("metrics returns counters", async () => {
   t.push({ op: "ready" });
   await c.waitUntilReady(200);
   const m = await c.metrics();
-  assert.equal(m.rules["always-delay"].triggerCount, 1);
+  assert.deepEqual(m, {
+    rules: { "always-delay": { matchCount: 1, triggerCount: 1 } },
+  });
 });
 
 test("decide times out", async () => {
@@ -97,4 +99,20 @@ test("control requests use incrementing string ids and shutdown closes", async (
     id: "2",
   });
   assert.equal(t.closed, true);
+});
+
+test("shutdown closes the transport when the shutdown request times out", async () => {
+  let closed = false;
+  const transport: SidecarTransport = {
+    writeLine() {},
+    onLine() {},
+    async close() {
+      closed = true;
+    },
+  };
+  const client = new SidecarClient(transport, { decideMs: 20 });
+
+  await assert.rejects(() => client.shutdown(), /shutdown request timed out/i);
+
+  assert.equal(closed, true);
 });

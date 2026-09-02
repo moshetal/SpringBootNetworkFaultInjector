@@ -50,8 +50,9 @@ export class SidecarClient {
     return this.request<Decision>({ op: "decide", method, url });
   }
 
-  metrics(): Promise<MetricsSnapshot> {
-    return this.request<MetricsSnapshot>({ op: "metrics" });
+  async metrics(): Promise<MetricsSnapshot> {
+    const payload = await this.request<MetricsSnapshot>({ op: "metrics" });
+    return { rules: payload.rules };
   }
 
   async setEnabled(enabled: boolean): Promise<void> {
@@ -59,8 +60,11 @@ export class SidecarClient {
   }
 
   async shutdown(): Promise<void> {
-    await this.request({ op: "shutdown" });
-    await this.transport.close();
+    try {
+      await this.request({ op: "shutdown" });
+    } finally {
+      await this.transport.close();
+    }
   }
 
   private request<T>(message: Record<string, unknown>): Promise<T> {
@@ -77,7 +81,13 @@ export class SidecarClient {
         reject,
         timer,
       });
-      this.transport.writeLine(JSON.stringify({ ...message, id }));
+      try {
+        this.transport.writeLine(JSON.stringify({ ...message, id }));
+      } catch (error) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(error);
+      }
     });
   }
 

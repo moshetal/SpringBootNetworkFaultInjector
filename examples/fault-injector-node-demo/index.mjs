@@ -22,9 +22,10 @@ const baseUrl = `http://127.0.0.1:${address.port}`;
 const configPath = fileURLToPath(
   new URL("./fault-injection.yml", import.meta.url),
 );
-const faultInjector = await FaultInjector.start({ configPath });
+let faultInjector;
 
 try {
+  faultInjector = await FaultInjector.start({ configPath });
   faultInjector.patchFetch(globalThis);
   faultInjector.patchAxios(axios);
 
@@ -46,8 +47,11 @@ try {
 
   console.log("metrics:", JSON.stringify(await faultInjector.metrics()));
 } finally {
-  await faultInjector.stop();
-  await new Promise((resolve, reject) => {
-    server.close((error) => (error ? reject(error) : resolve()));
-  });
+  try {
+    await faultInjector?.stop();
+  } finally {
+    await new Promise((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+  }
 }

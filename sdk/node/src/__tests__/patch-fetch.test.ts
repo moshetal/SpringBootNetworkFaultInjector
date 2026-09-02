@@ -102,6 +102,19 @@ test("PASS immediately calls the original fetch with method and Request URL", as
   });
 });
 
+test("uppercases an init method before requesting a decision", async () => {
+  const context = await started({ instruction: "PASS" });
+
+  await context.target.fetch("https://api.example.com/resource", {
+    method: "post",
+  });
+
+  assert.equal(
+    JSON.parse(context.transport.writes.at(-1) ?? "").method,
+    "POST",
+  );
+});
+
 test("a decision error warns and fails open", async (t) => {
   const warn = t.mock.method(console, "warn", () => {});
   const { target, calls } = await started(new Error("sidecar unavailable"));
