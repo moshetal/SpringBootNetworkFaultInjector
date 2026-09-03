@@ -79,6 +79,28 @@ test("INJECT_ERROR rejects with a synthetic response without calling the adapter
   assert.equal(context.adapterCalls, 0);
 });
 
+test("an injected error is a real AxiosError", async () => {
+  const context = await started({
+    instruction: "INJECT_ERROR",
+    errorStatus: 503,
+    errorMessage: "unavailable",
+  });
+
+  const url = "https://api.example.com/x";
+  await assert.rejects(
+    () => context.axiosInstance.get(url),
+    (error: unknown) => {
+      assert.ok(axios.isAxiosError(error));
+      assert.equal(error.code, axios.AxiosError.ERR_BAD_RESPONSE);
+      assert.equal(error.response?.status, 503);
+      assert.equal(error.config?.url, url);
+      assert.equal(error.message, "unavailable");
+      return true;
+    },
+  );
+  assert.equal(context.adapterCalls, 0);
+});
+
 test("INJECT_DELAY waits before calling the adapter", async () => {
   const context = await started({
     instruction: "INJECT_DELAY",

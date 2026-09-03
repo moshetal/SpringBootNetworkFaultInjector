@@ -1,3 +1,4 @@
+import { AxiosError } from "axios";
 import type {
   AxiosInstance,
   InternalAxiosRequestConfig,
@@ -29,6 +30,7 @@ export function patchAxios(
           createInjectedError(
             decision.errorStatus ?? 503,
             decision.errorMessage ?? "",
+            config,
           ),
         );
       }
@@ -42,21 +44,22 @@ export function patchAxios(
   return () => instance.interceptors.request.eject(interceptorId);
 }
 
-interface InjectedError extends Error {
-  response: {
-    status: number;
-    data: string;
-  };
-}
-
-function createInjectedError(status: number, data: string): InjectedError {
+function createInjectedError(
+  status: number,
+  data: string,
+  config: InternalAxiosRequestConfig,
+): AxiosError {
   if (!Number.isInteger(status) || status < 100 || status > 599) {
     throw new RangeError(`Invalid injected HTTP status: ${status}`);
   }
 
-  const error = new Error(data) as InjectedError;
-  error.response = { status, data };
-  return error;
+  return new AxiosError(
+    data,
+    status >= 500 ? AxiosError.ERR_BAD_RESPONSE : AxiosError.ERR_BAD_REQUEST,
+    config,
+    undefined,
+    { status, statusText: "", headers: {}, data, config },
+  );
 }
 
 function sleep(milliseconds: number): Promise<void> {
