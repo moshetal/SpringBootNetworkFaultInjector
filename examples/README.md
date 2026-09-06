@@ -6,6 +6,7 @@ Runnable demos and copy-paste config for the Spring Boot Fault Injector.
 
 - **Local demo:** Java 17+, Maven
 - **Cloud demo:** Docker with Compose
+- **Node demo:** Java 17+, Maven, Node.js 18+, npm
 
 ## Quick start
 
@@ -15,6 +16,7 @@ From the **repository root**:
 |---|---|---|
 | **Local** | `make demo-local` | Single app + local UI at http://localhost:8080/fault-injector/ |
 | **Cloud** | `make demo-cloud` | Server + Postgres + 2 billing pods + 2 catalog pods + console at http://localhost:8080/console/ |
+| **Node** | `make demo-node` | fetch + Axios fault-injection demo, no UI |
 
 `make demo-local` runs `mvn install` first so the demo resolves the current library SNAPSHOT.
 
@@ -41,6 +43,7 @@ Do not run **local** and **cloud** demos at the same time — both use port **80
 examples/
 ├── config/                  # YAML/properties snippets (not on classpath)
 ├── fault-injector-demo/     # Spring Boot sample app
+├── fault-injector-node-demo/ # Node fetch + Axios sample app
 └── docker/                  # docker-compose + demo image Dockerfile
 ```
 

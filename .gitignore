@@ -1,6 +1,14 @@
+# Local git worktrees
+.worktrees/
+
 # Maven build output
 /target/
 *.class
+sdk/node/node_modules/
+sdk/node/dist/
+sdk/node/sidecar/*.jar
+examples/fault-injector-node-demo/node_modules/
+examples/fault-injector-node-demo/dist/
 
 # IntelliJ IDEA project files (any module, e.g. samples opened in a separate window)
 **/.idea/

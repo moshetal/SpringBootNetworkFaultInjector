@@ -1,0 +1,22 @@
+{
+  "name": "fault-injector-sdk",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "files": ["dist", "sidecar"],
+  "peerDependencies": { "axios": "^1.6.0" },
+  "peerDependenciesMeta": { "axios": { "optional": true } },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "axios": "^1.6.8",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "node --import tsx --test src/__tests__/*.test.ts"
+  },
+  "engines": { "node": ">=18" }
+}

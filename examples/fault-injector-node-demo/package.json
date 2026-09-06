@@ -1,0 +1,12 @@
+{
+  "name": "fault-injector-node-demo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.mjs"
+  },
+  "dependencies": {
+    "axios": "^1.6.8",
+    "fault-injector-sdk": "file:../../sdk/node"
+  }
+}

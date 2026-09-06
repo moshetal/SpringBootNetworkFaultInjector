@@ -1,0 +1,17 @@
+fault:
+  injection:
+    enabled: true
+    defaults:
+      mode: PROBABILITY
+      probability: 1.0
+      error-status: 503
+      error-message: Injected fault
+    rules:
+      - name: slow
+        url-pattern: ".*/slow"
+        fault: DELAY
+        delay-ms: 500
+      - name: flaky
+        url-pattern: ".*/flaky"
+        fault: ERROR
+        error-status: 503

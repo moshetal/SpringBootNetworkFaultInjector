@@ -1,4 +1,4 @@
-.PHONY: demo-local demo-cloud install-lib verify
+.PHONY: demo-local demo-cloud demo-node install-lib verify
 
 install-lib:
 	mvn -q install -DskipTests
@@ -8,6 +8,11 @@ demo-local: install-lib
 
 demo-cloud:
 	docker compose -f examples/docker/docker-compose.yml up --build
+
+demo-node: install-lib
+	mvn -pl fault-injector-sidecar -am package -DskipTests
+	cd sdk/node && npm install && npm run build
+	cd examples/fault-injector-node-demo && npm install && npm start
 
 verify:
 	mvn clean verify
