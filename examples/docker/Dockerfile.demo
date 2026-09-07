@@ -21,5 +21,7 @@ RUN mvn -B -q package -DskipTests
 FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=demo /build/examples/fault-injector-demo/target/fault-injector-demo-*.jar app.jar
+COPY examples/docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["/app/entrypoint.sh"]

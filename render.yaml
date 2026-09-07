@@ -30,7 +30,6 @@ services:
     dockerfilePath: platform/fault-injector-server/Dockerfile
     dockerContext: .
     healthCheckPath: /console/
-    dockerCommand: sh -c 'exec java -jar /app/app.jar --spring.datasource.url="jdbc:${DATABASE_URL}?sslmode=require"'
     envVars:
       - key: JAVA_TOOL_OPTIONS
         value: "-XX:MaxRAMPercentage=75.0"
@@ -48,7 +47,6 @@ services:
     dockerfilePath: examples/docker/Dockerfile.demo
     dockerContext: .
     healthCheckPath: /actuator/health
-    dockerCommand: sh -c 'export FAULT_INJECTION_AGENT_SERVER_URL="wss://${FAULT_INJECTOR_SERVER_HOST}/ws"; exec java -jar /app/app.jar'
     envVars:
       - fromGroup: demo-jvm
       - key: SPRING_PROFILES_ACTIVE
@@ -68,7 +66,6 @@ services:
     dockerfilePath: examples/docker/Dockerfile.demo
     dockerContext: .
     healthCheckPath: /actuator/health
-    dockerCommand: sh -c 'export FAULT_INJECTION_AGENT_SERVER_URL="wss://${FAULT_INJECTOR_SERVER_HOST}/ws"; exec java -jar /app/app.jar'
     envVars:
       - fromGroup: demo-jvm
       - key: SPRING_PROFILES_ACTIVE
@@ -88,7 +85,6 @@ services:
     dockerfilePath: examples/docker/Dockerfile.demo
     dockerContext: .
     healthCheckPath: /actuator/health
-    dockerCommand: sh -c 'export FAULT_INJECTION_AGENT_SERVER_URL="wss://${FAULT_INJECTOR_SERVER_HOST}/ws"; exec java -jar /app/app.jar'
     envVars:
       - fromGroup: demo-jvm
       - key: SPRING_PROFILES_ACTIVE
@@ -108,7 +104,6 @@ services:
     dockerfilePath: examples/docker/Dockerfile.demo
     dockerContext: .
     healthCheckPath: /actuator/health
-    dockerCommand: sh -c 'export FAULT_INJECTION_AGENT_SERVER_URL="wss://${FAULT_INJECTOR_SERVER_HOST}/ws"; exec java -jar /app/app.jar'
     envVars:
       - fromGroup: demo-jvm
       - key: SPRING_PROFILES_ACTIVE
