@@ -44,7 +44,7 @@ examples/
 ├── config/                  # YAML/properties snippets (not on classpath)
 ├── fault-injector-demo/     # Spring Boot sample app
 ├── fault-injector-node-demo/ # Node fetch + Axios sample app
-└── docker/                  # docker-compose + demo image Dockerfile
+└── docker/                  # docker-compose, public overlay, Oracle demo doc
 ```
 
 ## Config snippets
@@ -68,3 +68,7 @@ docker compose -f examples/docker/docker-compose.yml up --build
 ## Server-only deployment
 
 To run the control plane without the demo stack, see [platform/README.md](../platform/README.md).
+
+## Public Oracle demo
+
+To run the cloud stack on a free Oracle ARM VM (public IP, four pods), see [docker/oracle-public-demo.md](docker/oracle-public-demo.md).
