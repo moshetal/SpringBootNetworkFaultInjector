@@ -30,6 +30,7 @@ services:
     dockerfilePath: platform/fault-injector-server/Dockerfile
     dockerContext: .
     healthCheckPath: /console/
+    dockerCommand: /app/entrypoint.sh
     envVars:
       - key: JAVA_TOOL_OPTIONS
         value: "-XX:MaxRAMPercentage=75.0"
@@ -47,6 +48,7 @@ services:
     dockerfilePath: examples/docker/Dockerfile.demo
     dockerContext: .
     healthCheckPath: /actuator/health
+    dockerCommand: /app/entrypoint.sh
     envVars:
       - fromGroup: demo-jvm
       - key: SPRING_PROFILES_ACTIVE
@@ -66,6 +68,7 @@ services:
     dockerfilePath: examples/docker/Dockerfile.demo
     dockerContext: .
     healthCheckPath: /actuator/health
+    dockerCommand: /app/entrypoint.sh
     envVars:
       - fromGroup: demo-jvm
       - key: SPRING_PROFILES_ACTIVE
@@ -85,6 +88,7 @@ services:
     dockerfilePath: examples/docker/Dockerfile.demo
     dockerContext: .
     healthCheckPath: /actuator/health
+    dockerCommand: /app/entrypoint.sh
     envVars:
       - fromGroup: demo-jvm
       - key: SPRING_PROFILES_ACTIVE
@@ -104,6 +108,7 @@ services:
     dockerfilePath: examples/docker/Dockerfile.demo
     dockerContext: .
     healthCheckPath: /actuator/health
+    dockerCommand: /app/entrypoint.sh
     envVars:
       - fromGroup: demo-jvm
       - key: SPRING_PROFILES_ACTIVE
