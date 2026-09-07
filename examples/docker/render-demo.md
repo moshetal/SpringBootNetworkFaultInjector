@@ -6,7 +6,7 @@ One GitHub connect. Render builds the existing Dockerfiles and gives HTTPS URLs.
 
 1. Sign up at [render.com](https://render.com) (no card required for free).
 2. Open [New Blueprint](https://dashboard.render.com/blueprints) and connect this GitHub repo.
-3. Select branch `feat/oracle-public-demo` until that PR is merged, then `master`.
+3. Select branch `feat/render-public-demo` until this PR is merged, then `master`.
 4. Apply `render.yaml`. First deploy is a Maven Docker build (several minutes, five services).
 
 When it finishes, Render shows five `.onrender.com` URLs. Console is `https://fault-injector-server-….onrender.com/console/`.
