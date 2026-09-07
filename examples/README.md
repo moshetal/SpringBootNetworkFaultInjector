@@ -69,6 +69,10 @@ docker compose -f examples/docker/docker-compose.yml up --build
 
 To run the control plane without the demo stack, see [platform/README.md](../platform/README.md).
 
+## Public demo (Render)
+
+To run the cloud stack on Render’s free tier (HTTPS URLs, four pods), see [docker/render-demo.md](docker/render-demo.md).
+
 ## Public Oracle demo
 
-To run the cloud stack on a free Oracle ARM VM (public IP, four pods), see [docker/oracle-public-demo.md](docker/oracle-public-demo.md).
+To run the same stack on a free Oracle ARM VM instead, see [docker/oracle-public-demo.md](docker/oracle-public-demo.md).

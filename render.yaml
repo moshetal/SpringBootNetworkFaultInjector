@@ -1,0 +1,122 @@
+# Free Render Blueprint: console + Postgres + four demo pods.
+# Apply from https://dashboard.render.com/blueprints
+# Free web services sleep after 15 minutes and cannot use private HTTP between
+# each other — agents connect over public wss:// and may be missing until you
+# open each pod URL once to wake it.
+
+databases:
+  - name: faultinjector
+    plan: free
+    postgresMajorVersion: "16"
+    databaseName: faultinjector
+    user: faultinjector
+    ipAllowList: []
+
+envVarGroups:
+  - name: demo-jvm
+    envVars:
+      - key: JAVA_TOOL_OPTIONS
+        value: "-XX:MaxRAMPercentage=75.0"
+      - key: FAULT_INJECTION_AGENT_ENABLED
+        value: "true"
+      - key: FAULT_INJECTION_ENABLED
+        value: "true"
+
+services:
+  - type: web
+    name: fault-injector-server
+    runtime: docker
+    plan: free
+    dockerfilePath: platform/fault-injector-server/Dockerfile
+    dockerContext: .
+    healthCheckPath: /console/
+    dockerCommand: sh -c 'exec java -jar /app/app.jar --spring.datasource.url="jdbc:${DATABASE_URL}?sslmode=require"'
+    envVars:
+      - key: JAVA_TOOL_OPTIONS
+        value: "-XX:MaxRAMPercentage=75.0"
+      - key: SERVER_FORWARD_HEADERS_STRATEGY
+        value: framework
+      - key: DATABASE_URL
+        fromDatabase:
+          name: faultinjector
+          property: connectionString
+
+  - type: web
+    name: billing-a
+    runtime: docker
+    plan: free
+    dockerfilePath: examples/docker/Dockerfile.demo
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    dockerCommand: sh -c 'export FAULT_INJECTION_AGENT_SERVER_URL="wss://${FAULT_INJECTOR_SERVER_HOST}/ws"; exec java -jar /app/app.jar'
+    envVars:
+      - fromGroup: demo-jvm
+      - key: SPRING_PROFILES_ACTIVE
+        value: billing
+      - key: FAULT_INJECTION_AGENT_INSTANCE_ID
+        value: billing-a
+      - key: FAULT_INJECTOR_SERVER_HOST
+        fromService:
+          name: fault-injector-server
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+
+  - type: web
+    name: billing-b
+    runtime: docker
+    plan: free
+    dockerfilePath: examples/docker/Dockerfile.demo
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    dockerCommand: sh -c 'export FAULT_INJECTION_AGENT_SERVER_URL="wss://${FAULT_INJECTOR_SERVER_HOST}/ws"; exec java -jar /app/app.jar'
+    envVars:
+      - fromGroup: demo-jvm
+      - key: SPRING_PROFILES_ACTIVE
+        value: billing
+      - key: FAULT_INJECTION_AGENT_INSTANCE_ID
+        value: billing-b
+      - key: FAULT_INJECTOR_SERVER_HOST
+        fromService:
+          name: fault-injector-server
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+
+  - type: web
+    name: catalog-a
+    runtime: docker
+    plan: free
+    dockerfilePath: examples/docker/Dockerfile.demo
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    dockerCommand: sh -c 'export FAULT_INJECTION_AGENT_SERVER_URL="wss://${FAULT_INJECTOR_SERVER_HOST}/ws"; exec java -jar /app/app.jar'
+    envVars:
+      - fromGroup: demo-jvm
+      - key: SPRING_PROFILES_ACTIVE
+        value: catalog
+      - key: FAULT_INJECTION_AGENT_INSTANCE_ID
+        value: catalog-a
+      - key: FAULT_INJECTOR_SERVER_HOST
+        fromService:
+          name: fault-injector-server
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+
+  - type: web
+    name: catalog-b
+    runtime: docker
+    plan: free
+    dockerfilePath: examples/docker/Dockerfile.demo
+    dockerContext: .
+    healthCheckPath: /actuator/health
+    dockerCommand: sh -c 'export FAULT_INJECTION_AGENT_SERVER_URL="wss://${FAULT_INJECTOR_SERVER_HOST}/ws"; exec java -jar /app/app.jar'
+    envVars:
+      - fromGroup: demo-jvm
+      - key: SPRING_PROFILES_ACTIVE
+        value: catalog
+      - key: FAULT_INJECTION_AGENT_INSTANCE_ID
+        value: catalog-b
+      - key: FAULT_INJECTOR_SERVER_HOST
+        fromService:
+          name: fault-injector-server
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME

@@ -8,6 +8,7 @@ COPY fault-injector-ui fault-injector-ui
 COPY fault-injector-agent fault-injector-agent
 COPY spring-boot-starter-fault-injector spring-boot-starter-fault-injector
 COPY spring-boot-starter-fault-injector-agent spring-boot-starter-fault-injector-agent
+COPY fault-injector-sidecar fault-injector-sidecar
 RUN mvn -B -q install -DskipTests
 
 FROM maven:3.9-eclipse-temurin-17 AS server
